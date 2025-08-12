@@ -4,7 +4,8 @@ export type NodeKind =
   | "rectangle"
   | "ellipse"
   | "text"
-  | "container";
+  | "container"
+  | "virtual";
 
 export interface DiagramNodeDataBase {
   label: string;
@@ -12,6 +13,9 @@ export interface DiagramNodeDataBase {
   childDiagramId?: DiagramId; // if present, node is expandable to a sub-diagram
   fillColor?: string;
   textColor?: string;
+  // If present, this node is a virtual reference to another node id
+  // Virtual nodes mirror the target node's label and cannot be edited
+  virtualOf?: string;
 }
 
 export interface DiagramNode {

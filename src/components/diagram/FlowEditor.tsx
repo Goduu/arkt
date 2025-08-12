@@ -34,6 +34,7 @@ function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: st
     rotation: n.rotation ?? 0,
     width: n.width,
     height: n.height,
+    virtualOf: n.data?.virtualOf,
   };
   if (opts?.onLabelCommit) {
     baseData.onLabelCommit = (next: string) => opts.onLabelCommit!(n.id, next);
@@ -54,7 +55,7 @@ function toRFEdge(e: DiagramEdge): RFEdge {
 }
 
 export function FlowEditor() {
-  const { diagrams, currentId, setNodesEdges, addNode } = useAppStore();
+  const { diagrams, currentId, setNodesEdges, addNode, navigateTo } = useAppStore();
   const diagram: Diagram | undefined = diagrams[currentId];
 
   // Drill stack of node ids we navigated into; empty means top-level diagram
@@ -135,6 +136,7 @@ export function FlowEditor() {
         description: (n.data as any)?.description,
         fillColor: (n.data as any)?.fillColor,
         textColor: (n.data as any)?.textColor,
+        virtualOf: (n.data as any)?.virtualOf,
       },
       width: (n as any).style?.width ?? (n.data as any)?.width ?? 180,
       height: (n as any).style?.height ?? (n.data as any)?.height ?? 80,
@@ -229,6 +231,89 @@ export function FlowEditor() {
     // persistence handled by autosave
   };
 
+  // --- Virtual node creation dialog state ---
+  type FlattenedNode = { nodeId: string; label: string; diagramId: string; pathIds: string[]; pathLabels: string[] };
+  const [isVirtualDialogOpen, setIsVirtualDialogOpen] = React.useState<boolean>(false);
+  const [virtualSearch, setVirtualSearch] = React.useState<string>("");
+  const [virtualSelection, setVirtualSelection] = React.useState<FlattenedNode | null>(null);
+
+  const flattenAllNodes = React.useCallback((): FlattenedNode[] => {
+    const results: FlattenedNode[] = [];
+    const diagramsEntries = Object.entries(diagrams);
+    for (const [dId, d] of diagramsEntries) {
+      const stack: Array<{ node: DiagramNode; pathIds: string[]; pathLabels: string[] }> = (d.nodes ?? []).map((n) => ({ node: n, pathIds: [], pathLabels: [] }));
+      while (stack.length > 0) {
+        const { node, pathIds, pathLabels } = stack.pop()!;
+        results.push({ nodeId: node.id, label: node.data.label, diagramId: dId, pathIds: [...pathIds, node.id], pathLabels: [...pathLabels, node.data.label] });
+        if (node.diagram?.nodes?.length) {
+          for (const child of node.diagram.nodes) {
+            stack.push({ node: child, pathIds: [...pathIds, node.id], pathLabels: [...pathLabels, node.data.label] });
+          }
+        }
+      }
+    }
+    return results;
+  }, [diagrams]);
+
+  const allFlattened = React.useMemo(() => flattenAllNodes(), [flattenAllNodes]);
+  const filteredFlattened = React.useMemo(() => {
+    const q = virtualSearch.trim().toLowerCase();
+    if (!q) return allFlattened.slice(0, 200);
+    return allFlattened.filter((f) => f.label.toLowerCase().includes(q)).slice(0, 200);
+  }, [allFlattened, virtualSearch]);
+
+  const handleAddVirtualNode = () => {
+    setIsVirtualDialogOpen(true);
+    setVirtualSelection(null);
+    setVirtualSearch("");
+  };
+
+  const confirmAddVirtualNode = () => {
+    if (!diagram || !virtualSelection) return;
+    const position = { x: Math.random() * 300 + 100, y: Math.random() * 200 + 100 };
+    if (drillStack.length === 0) {
+      const id = addNode(diagram.id, {
+        type: "virtual",
+        position,
+        width: 180,
+        height: 80,
+        data: { label: virtualSelection.label, virtualOf: virtualSelection.nodeId },
+        diagram: { nodes: [], edges: [] },
+      });
+      setNodes((prev) => [
+        ...prev,
+        toRFNode({ id, type: "virtual", position, width: 180, height: 80, data: { label: virtualSelection.label, virtualOf: virtualSelection.nodeId }, diagram: { nodes: [], edges: [] } }),
+      ]);
+    } else {
+      const id = nanoid();
+      setNodes((prev) => [
+        ...prev,
+        toRFNode({ id, type: "virtual", position, width: 180, height: 80, data: { label: virtualSelection.label, virtualOf: virtualSelection.nodeId }, diagram: { nodes: [], edges: [] } }),
+      ]);
+      // persistence handled by autosave
+    }
+    setIsVirtualDialogOpen(false);
+    setVirtualSelection(null);
+  };
+
+  // Find path to a node across diagrams; returns {diagramId, pathIds}
+  const findNodeAcrossDiagrams = React.useCallback((targetId: string | undefined): { diagramId: string; pathIds: string[] } | null => {
+    if (!targetId) return null;
+    for (const [dId, d] of Object.entries(diagrams)) {
+      const stack: Array<{ node: DiagramNode; path: string[] }> = (d.nodes ?? []).map((n) => ({ node: n, path: [n.id] }));
+      while (stack.length > 0) {
+        const { node, path } = stack.pop()!;
+        if (node.id === targetId) return { diagramId: dId, pathIds: path };
+        if (node.diagram?.nodes?.length) {
+          for (const child of node.diagram.nodes) {
+            stack.push({ node: child, path: [...path, child.id] });
+          }
+        }
+      }
+    }
+    return null;
+  }, [diagrams]);
+
   const onBack = () => {
     ensureSyncedThen(() => setDrillStack((prev) => prev.slice(0, -1)));
   };
@@ -269,13 +354,37 @@ export function FlowEditor() {
   }, [syncToStore]);
 
   const onNodeDoubleClick = React.useCallback((_: React.MouseEvent, node: RFNode) => {
+    const isVirtual = (node.data as any)?.nodeKind === "virtual" || Boolean((node.data as any)?.virtualOf);
+    if (isVirtual) {
+      const target = findNodeAcrossDiagrams((node.data as any)?.virtualOf);
+      if (target) {
+        ensureSyncedThen(() => {
+          if (currentId !== target.diagramId) navigateTo(target.diagramId);
+          // Open the target node's sub-diagram
+          setDrillStack(target.pathIds);
+        });
+        return;
+      }
+    }
     ensureSyncedThen(() => setDrillStack((prev) => [...prev, node.id]));
-  }, [ensureSyncedThen]);
+  }, [ensureSyncedThen, findNodeAcrossDiagrams, currentId, navigateTo]);
+
+  const onNodeClick = React.useCallback((_: React.MouseEvent, node: RFNode) => {
+    const isVirtual = (node.data as any)?.nodeKind === "virtual" || Boolean((node.data as any)?.virtualOf);
+    if (!isVirtual) return;
+    const target = findNodeAcrossDiagrams((node.data as any)?.virtualOf);
+    if (!target) return;
+    ensureSyncedThen(() => {
+      if (currentId !== target.diagramId) navigateTo(target.diagramId);
+      setDrillStack(target.pathIds);
+    });
+  }, [ensureSyncedThen, findNodeAcrossDiagrams, currentId, navigateTo]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-48px)]">
       <div className="flex items-center gap-2 border-b p-2">
         <Button size="sm" onClick={onAddNode}>Add node</Button>
+        <Button size="sm" variant="outline" onClick={handleAddVirtualNode}>Add virtual node</Button>
         {isNestedView && (
           <Button size="sm" variant="outline" onClick={onBack}><CornerUpLeft className="mr-2 h-4 w-4" /> Back</Button>
         )}
@@ -294,6 +403,7 @@ export function FlowEditor() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeDoubleClick={onNodeDoubleClick}
+          onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
           nodesConnectable
           onSelectionChange={(sel) => {
@@ -309,7 +419,11 @@ export function FlowEditor() {
           <Controls />
         </ReactFlow>
         <NodeControls
-          selectedNode={selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) ?? null : null}
+          selectedNode={(() => {
+            const n = selectedNodeId ? nodes.find((nn) => nn.id === selectedNodeId) ?? null : null;
+            const isVirtual = n ? ((n.data as any)?.nodeKind === "virtual" || Boolean((n.data as any)?.virtualOf)) : false;
+            return isVirtual ? null : n;
+          })()}
           onChange={(node: RFNode) => {
             setNodes((prev) => prev.map((n) => (n.id === node.id ? node : n)));
           }}
@@ -322,6 +436,43 @@ export function FlowEditor() {
           }}
         />
       </div>
+      {isVirtualDialogOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40">
+          <div className="w-[600px] max-w-[90vw] rounded-md border bg-background shadow-lg">
+            <div className="border-b px-3 py-2 text-sm font-medium">Add virtual node</div>
+            <div className="p-3 space-y-3">
+              <input
+                className="w-full rounded border px-2 py-1 bg-transparent"
+                placeholder="Search nodes by label..."
+                value={virtualSearch}
+                onChange={(e) => setVirtualSearch(e.target.value)}
+              />
+              <div className="max-h-64 overflow-auto border rounded">
+                <ul>
+                  {filteredFlattened.map((item) => {
+                    const isSelected = virtualSelection?.nodeId === item.nodeId && virtualSelection.diagramId === item.diagramId;
+                    return (
+                      <li key={`${item.diagramId}:${item.nodeId}`}>
+                        <button
+                          className={`w-full text-left px-3 py-2 text-sm ${isSelected ? "bg-accent" : "hover:bg-muted"}`}
+                          onClick={() => setVirtualSelection(item)}
+                        >
+                          <div className="font-medium truncate">{item.label}</div>
+                          <div className="text-xs text-muted-foreground truncate">{item.pathLabels.join(" › ")} {item.pathLabels.length ? "(path)" : ""}</div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={() => setIsVirtualDialogOpen(false)}>Cancel</Button>
+                <Button size="sm" disabled={!virtualSelection} onClick={confirmAddVirtualNode}>Add</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
