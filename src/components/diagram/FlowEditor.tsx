@@ -24,6 +24,20 @@ import { ArchNode } from "@/components/diagram/nodes/ArchNode";
 import { NodeControls } from "./NodeControls";
 import { EdgeControls } from "@/components/diagram/EdgeControls";
 import { nanoid } from "nanoid";
+import { FocusIntentHandler } from "./FocusIntentHandler";
+import { ArchEdge } from "@/components/diagram/edges/ArchEdge";
+
+type RFArchEdgeData = {
+  shape?: "straight" | "bezier" | "smoothstep" | "step";
+  strokeColor?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
+  animated?: boolean;
+  label?: string;
+  fontSize?: number;
+  labelColor?: string;
+  labelBackground?: string;
+};
 
 function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: string) => void }): RFNode {
   const baseData: any = {
@@ -44,15 +58,27 @@ function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: st
 }
 
 function toRFEdge(e: DiagramEdge): RFEdge {
-  return {
+  const rf: RFEdge = {
     id: e.id,
     source: e.source,
     target: e.target,
-    type: e.type === "smoothstep" ? "smoothstep" : e.type === "step" ? "step" : e.type === "bezier" ? "bezier" : "default",
+    type: "arch", // custom edge component controls rendering and interactivity
     label: e.label?.text,
     markerStart: e.arrowStart ? { type: MarkerType.ArrowClosed } : undefined,
     markerEnd: e.arrowEnd !== false ? { type: MarkerType.ArrowClosed } : undefined,
-  } satisfies RFEdge;
+    data: {
+      shape: e.type,
+      strokeColor: e.strokeColor ?? "#4b5563",
+      strokeWidth: e.strokeWidth ?? 2,
+      dashed: Boolean(e.dashed),
+      animated: Boolean(e.animated),
+      label: e.label?.text ?? "",
+      fontSize: e.label?.fontSize ?? 12,
+      labelColor: e.label?.color ?? "#111827",
+      labelBackground: e.label?.background ?? "#ffffff",
+    },
+  };
+  return rf;
 }
 
 export function FlowEditor() {
@@ -104,7 +130,27 @@ export function FlowEditor() {
   }, [diagram?.id, drillStack]);
 
   const onConnect: OnConnect = React.useCallback((connection: Connection) => {
-    setEdges((eds) => rfAddEdge({ ...connection, markerEnd: { type: MarkerType.ArrowClosed } }, eds));
+    setEdges((eds) =>
+      rfAddEdge(
+        {
+          ...connection,
+          type: "arch",
+          markerEnd: { type: MarkerType.ArrowClosed },
+          data: {
+            shape: "straight",
+            strokeColor: "#4b5563",
+            strokeWidth: 2,
+            dashed: false,
+            animated: false,
+            label: "",
+            fontSize: 12,
+            labelColor: "#111827",
+            labelBackground: "#ffffff",
+          },
+        } as unknown as RFEdge,
+        eds
+      )
+    );
   }, [setEdges]);
 
   // Refs to persist latest graph state on unmount/navigation
@@ -147,15 +193,31 @@ export function FlowEditor() {
     const stack = drillStackRef.current;
     if (stack.length === 0) {
       const asDomainNodes = toDomainNodes(existing.nodes);
-      const asDomainEdges: DiagramEdge[] = rfEdges.map((e) => ({
+      const asDomainEdges: DiagramEdge[] = rfEdges.map((e) => {
+        const d = (e.data ?? {}) as RFArchEdgeData;
+        return {
         id: e.id,
         source: e.source,
         target: e.target,
-        type: e.type === "smoothstep" || e.type === "step" || e.type === "bezier" ? e.type : "straight",
-        label: e.label ? { text: String(e.label) } : undefined,
+          type: d.shape === "smoothstep" || d.shape === "step" || d.shape === "bezier" || d.shape === "straight"
+            ? d.shape
+            : (e.type === "smoothstep" || e.type === "step" || e.type === "bezier" ? (e.type as DiagramEdge["type"]) : "straight"),
+          label: (() => {
+            const text = String((d.label ?? e.label ?? "")).trim();
+            if (!text) return undefined;
+            const fontSize = Number(d.fontSize ?? 12);
+            const color = d.labelColor;
+            const background = d.labelBackground;
+            return { text, fontSize, color, background };
+          })(),
         arrowStart: Boolean((e as any).markerStart),
         arrowEnd: Boolean((e as any).markerEnd),
-      }));
+          strokeColor: d.strokeColor,
+          strokeWidth: Number(d.strokeWidth ?? 2),
+          dashed: Boolean(d.dashed),
+          animated: Boolean(d.animated),
+        };
+      });
       setNodesEdges(id, asDomainNodes, asDomainEdges);
       return;
     }
@@ -179,15 +241,31 @@ export function FlowEditor() {
       return sub;
     })();
     const updatedNestedNodes = toDomainNodes(baseNested.nodes ?? []);
-    const updatedNestedEdges: DiagramEdge[] = rfEdges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      type: e.type === "smoothstep" || e.type === "step" || e.type === "bezier" ? e.type : "straight",
-      label: e.label ? { text: String(e.label) } : undefined,
-      arrowStart: Boolean((e as any).markerStart),
-      arrowEnd: Boolean((e as any).markerEnd),
-    }));
+    const updatedNestedEdges: DiagramEdge[] = rfEdges.map((e) => {
+      const d = (e.data ?? {}) as RFArchEdgeData;
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        type: d.shape === "smoothstep" || d.shape === "step" || d.shape === "bezier" || d.shape === "straight"
+          ? d.shape
+          : (e.type === "smoothstep" || e.type === "step" || e.type === "bezier" ? (e.type as DiagramEdge["type"]) : "straight"),
+        label: (() => {
+          const text = String((d.label ?? e.label ?? "")).trim();
+          if (!text) return undefined;
+          const fontSize = Number(d.fontSize ?? 12);
+          const color = d.labelColor;
+          const background = d.labelBackground;
+          return { text, fontSize, color, background };
+        })(),
+        arrowStart: Boolean((e as any).markerStart),
+        arrowEnd: Boolean((e as any).markerEnd),
+        strokeColor: d.strokeColor,
+        strokeWidth: Number(d.strokeWidth ?? 2),
+        dashed: Boolean(d.dashed),
+        animated: Boolean(d.animated),
+      };
+    });
     const updatedTop = replaceNested(existing.nodes, stack, { nodes: updatedNestedNodes, edges: updatedNestedEdges });
     setNodesEdges(id, updatedTop, existing.edges);
   }, [setNodesEdges]);
@@ -470,6 +548,7 @@ export function FlowEditor() {
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
+          edgeTypes={{ arch: ArchEdge }}
           nodesConnectable
           onSelectionChange={(sel) => {
             const e = (sel?.edges ?? [])[0] as RFEdge | undefined;
@@ -541,36 +620,6 @@ export function FlowEditor() {
       )}
     </div>
   );
-}
-
-// ReactFlow child helper that reads pendingFocus from store and focuses the viewport on the target connection
-function FocusIntentHandler(): React.JSX.Element | null {
-  const { pendingFocus, setPendingFocus, drillStack } = useAppStore();
-  const rf = useRFInstance();
-  React.useEffect(() => {
-    if (!pendingFocus) return;
-    // Ensure we are at the right nesting
-    if (drillStack.join("/") !== pendingFocus.containerPathIds.join("/")) return;
-
-    // Focus strategy: prefer edge, else union of nodes
-    const focusNodeIds = pendingFocus.focusNodeIds ?? [];
-    try {
-      if (focusNodeIds.length > 0) {
-        const nodesToFit = rf.getNodes().filter((n) => focusNodeIds.includes(n.id));
-        if (nodesToFit.length > 0) {
-          rf.fitView({ nodes: nodesToFit, padding: 0.25, includeHiddenNodes: true, minZoom: 0.3, maxZoom: 1.5 });
-        } else {
-          rf.fitView({ padding: 0.25 });
-        }
-      } else {
-        rf.fitView({ padding: 0.25 });
-      }
-    } finally {
-      // Clear once applied
-      setPendingFocus(null);
-    }
-  }, [pendingFocus, rf, setPendingFocus, drillStack]);
-  return null;
 }
 
 

@@ -2,12 +2,15 @@
 
 import * as React from "react";
 import type { NodeProps } from "reactflow";
-import { Handle, Position, useReactFlow } from "reactflow";
+import { Handle, NodeToolbar, Position, useReactFlow } from "reactflow";
 import { NodeResizer } from "@reactflow/node-resizer";
 import "@reactflow/node-resizer/dist/style.css";
 import { useAppStore } from "@/lib/store";
 import type { Diagram, DiagramEdge, DiagramNode, NodeKind } from "@/lib/types";
 import { Link as LinkIcon } from "lucide-react";
+import { VirtualLink } from "./types";
+import { VirtualLinkIndicator } from "./VirtualLinkIndicator";
+import { NodeColorFormToolbar } from "./NodeColorFormToolbar";
 
 type ArchNodeData = {
   label: string;
@@ -54,19 +57,6 @@ export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
     }
     return undefined;
   }, [isVirtual, props.data.virtualOf, diagram, diagrams, findNodeDeepInDiagram]);
-
-  // Collect connections coming from virtual nodes that reference THIS node (when we're rendering an original node)
-  type VirtualLink = {
-    diagramId: string;
-    diagramName: string;
-    containerPathIds: string[]; // path to the subdiagram where the connection happens
-    nodePathIds: string[]; // path including the virtual node id
-    pathLabels: string[]; // labels along nodePathIds (includes virtual node label at end)
-    viaVirtualNodeId: string;
-    otherEndNodeId: string;
-    otherEndNodeLabel: string;
-    direction: "incoming" | "outgoing" | "undirected";
-  };
 
   const virtualLinksToThisNode: VirtualLink[] = React.useMemo(() => {
     if (!diagrams) return [];
@@ -166,8 +156,6 @@ export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
   const isTailwindText = typeof text === "string" && text.startsWith("text-");
   const backgroundStyle = kind === "text" ? undefined : isTailwindBg ? undefined : fill;
 
-  const [showLinks, setShowLinks] = React.useState(false);
-
   return (
     <div
       className={`${roundedClass} ${borderClass} shadow-sm min-w-[140px] w-full h-full ${kind !== "text" && isTailwindBg ? String(fill) : ""} ${isTailwindText ? String(text) : ""} ${isVirtual ? "cursor-pointer" : ""} relative`}
@@ -196,49 +184,15 @@ export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
       />
       {/* Two-way relation indicator for original nodes referenced by virtual nodes */}
       {!isVirtual && virtualLinksToThisNode.length > 0 && (
-        <div className="absolute -top-2 -right-2">
-          <button
-            className="flex cursor-pointer z-30 items-center gap-1 rounded-full bg-blue-600 text-white text-[10px] px-2 py-1 shadow"
-            onClick={(e) => { e.stopPropagation(); e.preventDefault(); setShowLinks((v) => !v); }}
-            title="Virtual links"
-          >
-            <LinkIcon className="h-3 w-3" />
-            {virtualLinksToThisNode.length}
-          </button>
-          {showLinks && (
-            <div className="absolute right-0 mt-1 w-[260px] max-h-60 overflow-auto rounded-md border bg-background text-foreground text-xs shadow-lg z-10">
-              <div className="px-2 py-1 border-b text-[11px] font-medium">Linked via virtual nodes</div>
-              <ul>
-                {virtualLinksToThisNode.map((lk, idx) => (
-                  <li key={`${lk.diagramId}:${idx}`} className="px-2 py-2 border-b last:border-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="truncate">
-                        <div className="font-medium truncate">{lk.otherEndNodeLabel}</div>
-                        <div className="text-muted-foreground truncate">{lk.diagramName}{lk.pathLabels.length ? ` › ${lk.pathLabels.join(" › ")}` : ""}</div>
-                      </div>
-                      <button
-                        className="shrink-0 rounded border px-2 py-0.5 text-[11px] hover:bg-muted"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Navigate to the diagram where the connection happens and open its container path
-                          navigateTo(lk.diagramId);
-                          // Set pending focus to the subdiagram where the connection occurs
-                          setPendingFocus({ diagramId: lk.diagramId, containerPathIds: lk.containerPathIds, focusNodeIds: [lk.viaVirtualNodeId, lk.otherEndNodeId] });
-                          setTimeout(() => setDrillStack(lk.containerPathIds), 0);
-                          setShowLinks(false);
-                        }}
-                      >
-                        Open
-                      </button>
-                    </div>
-                    <div className="mt-1 text-[10px] text-muted-foreground">{lk.direction === "incoming" ? "← Incoming" : lk.direction === "outgoing" ? "Outgoing →" : "Linked"}</div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+        <VirtualLinkIndicator virtualLinksToThisNode={virtualLinksToThisNode} />
       )}
+      <NodeToolbar
+        isVisible={props.selected}
+        className="nopan"
+      >
+       <NodeColorFormToolbar nodeId={id} fillColor={props.data.fillColor} />
+
+      </NodeToolbar>
 
       <div className="px-3 py-2">
         <input

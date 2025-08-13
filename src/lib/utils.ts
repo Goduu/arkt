@@ -32,6 +32,18 @@ export const SUPPORTED_TAILWIND_BG_FAMILIES = [
   "rose",
 ] as const;
 
+export const TAILWIND_MAIN_COLORS = [
+  "slate",
+  "stone",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "blue",
+  "violet",
+  "pink",
+] as const;
+
 export type TailwindBgFamily = typeof SUPPORTED_TAILWIND_BG_FAMILIES[number];
 export type TailwindBgShade = 300 | 500 | 700;
 

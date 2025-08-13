@@ -34,6 +34,8 @@ export type EdgeKind = "straight" | "smoothstep" | "bezier" | "step";
 export interface DiagramEdgeLabel {
   text: string;
   fontSize?: number;
+  color?: string;
+  background?: string;
 }
 
 export interface DiagramEdge {
@@ -44,6 +46,10 @@ export interface DiagramEdge {
   label?: DiagramEdgeLabel;
   arrowStart?: boolean;
   arrowEnd?: boolean;
+  strokeColor?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
+  animated?: boolean;
 }
 
 export interface DiagramMeta {

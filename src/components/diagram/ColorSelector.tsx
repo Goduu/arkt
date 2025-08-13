@@ -14,7 +14,7 @@ type Mode = "bg" | "text";
 type Props = {
     label: string;
     value: string; // either a Tailwind class like bg-blue-500/text-blue-500 or a hex fallback
-    mode: Mode;
+    mode?: Mode;
     onChange: (nextClassOrHex: string) => void;
 };
 
