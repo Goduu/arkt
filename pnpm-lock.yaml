@@ -14,6 +14,9 @@ importers:
       '@radix-ui/react-icons':
         specifier: ^1.3.2
         version: 1.3.2(react@19.1.0)
+      '@reactflow/node-resizer':
+        specifier: ^2.2.14
+        version: 2.2.14(@types/react@19.1.10)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@tanstack/react-query':
         specifier: ^5.85.0
         version: 5.85.0(react@19.1.0)

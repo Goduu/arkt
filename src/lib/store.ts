@@ -9,11 +9,19 @@ export interface AppStoreState {
   diagrams: Record<DiagramId, Diagram>;
   rootId: DiagramId;
   currentId: DiagramId;
+  drillStack: string[]; // path of node ids inside the current diagram
+  // transient UI intents
+  pendingFocus: null | { diagramId: DiagramId; containerPathIds: string[]; focusNodeIds?: string[]; focusEdgeId?: string };
   // actions
   createDiagram: (name: string, parentId?: DiagramId) => DiagramId;
   renameDiagram: (id: DiagramId, name: string) => void;
   deleteDiagram: (id: DiagramId) => void;
   navigateTo: (id: DiagramId) => void;
+  setDrillStack: (stack: string[]) => void;
+  pushDrill: (nodeId: string) => void;
+  popDrill: () => void;
+  clearDrillStack: () => void;
+  setPendingFocus: (focus: AppStoreState["pendingFocus"]) => void;
   addNode: (diagramId: DiagramId, node: Omit<DiagramNode, "id">) => string;
   updateNode: (diagramId: DiagramId, node: DiagramNode) => void;
   removeNode: (diagramId: DiagramId, nodeId: string) => void;
@@ -50,6 +58,8 @@ export const useAppStore = create<AppStoreState>()(
       diagrams: { [initialRoot.id]: initialRoot },
       rootId: initialRoot.id,
       currentId: initialRoot.id,
+      drillStack: [],
+      pendingFocus: null,
 
   createDiagram: (name: string, parentId?: DiagramId) => {
     const diagram = createEmptyDiagram(name, parentId);
@@ -80,7 +90,14 @@ export const useAppStore = create<AppStoreState>()(
     });
   },
 
-  navigateTo: (id: DiagramId) => set({ currentId: id }),
+  navigateTo: (id: DiagramId) => set({ currentId: id, drillStack: [] }),
+
+  setDrillStack: (stack: string[]) => set({ drillStack: stack }),
+  pushDrill: (nodeId: string) => set((state) => ({ drillStack: [...state.drillStack, nodeId] })),
+  popDrill: () => set((state) => ({ drillStack: state.drillStack.slice(0, -1) })),
+  clearDrillStack: () => set({ drillStack: [] }),
+
+  setPendingFocus: (focus) => set({ pendingFocus: focus }),
 
   addNode: (diagramId: DiagramId, node: Omit<DiagramNode, "id">) => {
     const id = nanoid();
@@ -203,7 +220,7 @@ export const useAppStore = create<AppStoreState>()(
       name: "archkt-store",
       storage: createJSONStorage(() => localStorage),
       version: 1,
-      partialize: (state) => ({ diagrams: state.diagrams, rootId: state.rootId, currentId: state.currentId }),
+      partialize: (state) => ({ diagrams: state.diagrams, rootId: state.rootId, currentId: state.currentId, drillStack: state.drillStack }),
     }
   )
 );

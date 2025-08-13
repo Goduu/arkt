@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronRight, Home, Plus } from "lucide-react";
 
 export function Topbar() {
-  const { currentId, diagrams, rootId, navigateTo, createDiagram } = useAppStore();
+  const { currentId, diagrams, rootId, navigateTo, createDiagram, drillStack, setDrillStack } = useAppStore();
   const segments: string[] = [];
 
   let cursor = currentId;
@@ -44,6 +44,35 @@ export function Topbar() {
             </div>
           );
         })}
+        {drillStack.length > 0 && (
+          <>
+            <ChevronRight size={14} className="text-muted-foreground" />
+            {(() => {
+              // Build labels for in-diagram path
+              const labels: string[] = [];
+              let subNodes = diagrams[currentId]?.nodes ?? [];
+              for (const nid of drillStack) {
+                const found = subNodes.find((n) => n.id === nid);
+                labels.push(found?.data.label ?? "Node");
+                subNodes = found?.diagram?.nodes ?? [];
+              }
+              return labels.map((label, idx) => {
+                const isLast = idx === labels.length - 1;
+                return (
+                  <div key={`${label}-${idx}`} className="flex items-center">
+                    <button
+                      className={"text-sm font-medium hover:underline" + (isLast ? " text-foreground" : " text-muted-foreground")}
+                      onClick={() => setDrillStack(drillStack.slice(0, idx + 1))}
+                    >
+                      {label}
+                    </button>
+                    {!isLast && <ChevronRight size={14} className="text-muted-foreground mx-1" />}
+                  </div>
+                );
+              });
+            })()}
+          </>
+        )}
       </nav>
       <div className="ml-auto">
         <Button size="sm" onClick={onNewChild}>
