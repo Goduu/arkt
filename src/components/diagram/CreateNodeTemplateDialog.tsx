@@ -100,7 +100,7 @@ export function CreateNodeTemplateDialog({ isOpen, onClose }: Props): React.JSX.
                   width,
                   height,
                   rotation,
-                  data: { label: name || "Node", fillColor, textColor, borderColor, iconKey },
+                  data: { fillColor, textColor, borderColor, iconKey },
                 });
                 if (id) onClose();
               }}>Create</Button>

@@ -14,13 +14,14 @@ import ReactFlow, {
   type OnConnectEnd,
   // useReactFlow as useRFInstance,
   useEdgesState,
+  useReactFlow,
   useNodesState,
   MarkerType,
   ConnectionMode,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useAppStore } from "@/lib/store";
-import type { Diagram, DiagramEdge, DiagramNode, SubDiagram } from "@/lib/types";
+import type { Diagram, DiagramEdge, DiagramNode, RFArchEdgeData, RFArchNodeData, SubDiagram } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Download, Upload, CornerUpLeft, Link as LinkIcon, Square } from "lucide-react";
 import { ArchNode } from "@/components/diagram/nodes/ArchNode";
@@ -30,33 +31,9 @@ import { nanoid } from "nanoid";
 import { FocusIntentHandler } from "./FocusIntentHandler";
 import { ArchEdge } from "@/components/diagram/edges/ArchEdge";
 import { CreateNodeTemplateDialog } from "./CreateNodeTemplateDialog";
+import { getIconByKey } from "@/lib/iconRegistry";
+import { cn } from "@/lib/utils";
 
-type RFArchEdgeData = {
-  shape?: "straight" | "bezier" | "smoothstep" | "step";
-  strokeColor?: string;
-  strokeWidth?: number;
-  dashed?: boolean;
-  animated?: boolean;
-  label?: string;
-  fontSize?: number;
-  labelColor?: string;
-  labelBackground?: string;
-};
-
-type RFArchNodeData = {
-  label: string;
-  description?: string;
-  fillColor?: string;
-  textColor?: string;
-  borderColor?: string;
-  iconKey?: string;
-  nodeKind?: DiagramNode["type"];
-  rotation?: number;
-  width?: number;
-  height?: number;
-  virtualOf?: string;
-  onLabelCommit?: (next: string) => void;
-};
 
 function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: string) => void }): RFNode {
   const baseData: RFArchNodeData = {
@@ -105,6 +82,7 @@ function toRFEdge(e: DiagramEdge): RFEdge {
 export function FlowEditor() {
   const { diagrams, currentId, setNodesEdges, addNode, navigateTo, drillStack, pushDrill, popDrill, setDrillStack, setPendingFocus, pendingSpawn, setPendingSpawn, nodeTemplates } = useAppStore();
   const diagram: Diagram | undefined = diagrams[currentId];
+  const rf = useReactFlow();
 
   // Drill stack is now global in store
 
@@ -142,6 +120,24 @@ export function FlowEditor() {
   const [selectedEdge, setSelectedEdge] = React.useState<RFEdge | null>(null);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const connectFromHandle = React.useRef<"source" | "target" | null>(null);
+  const getSpawnPosition = React.useCallback((nodeWidth: number, nodeHeight: number) => {
+    try {
+      const container = document.querySelector('.react-flow') as HTMLElement | null;
+      const rect = container?.getBoundingClientRect();
+      const centerScreenX = rect ? (rect.left + rect.width / 2) : (window.innerWidth / 2);
+      const centerScreenY = rect ? (rect.top + rect.height / 2) : (window.innerHeight / 2);
+      const hasConverter = typeof (rf as unknown as { screenToFlowPosition?: (p: { x: number; y: number }) => { x: number; y: number } }).screenToFlowPosition === 'function';
+      const centerFlow = hasConverter
+        ? (rf as unknown as { screenToFlowPosition: (p: { x: number; y: number }) => { x: number; y: number } }).screenToFlowPosition({ x: centerScreenX, y: centerScreenY })
+        : (() => {
+          const vp = (rf as unknown as { getViewport: () => { x: number; y: number; zoom: number } }).getViewport();
+          return { x: (centerScreenX - vp.x) / vp.zoom, y: (centerScreenY - vp.y) / vp.zoom };
+        })();
+      return { x: centerFlow.x - nodeWidth / 2, y: centerFlow.y - nodeHeight / 2 };
+    } catch {
+      return { x: Math.random() * 300 + 100, y: Math.random() * 200 + 100 };
+    }
+  }, [rf]);
   // Spawn node from template when request is present
   React.useEffect(() => {
     if (!pendingSpawn) return;
@@ -150,16 +146,18 @@ export function FlowEditor() {
       setPendingSpawn(null);
       return;
     }
-    const position = { x: Math.random() * 300 + 100, y: Math.random() * 200 + 100 };
+    const nodeWidth = tpl.width ?? 180;
+    const nodeHeight = tpl.height ?? 80;
+    const position = getSpawnPosition(nodeWidth, nodeHeight);
     if (drillStack.length === 0) {
       const id = addNode(diagram.id, {
         type: tpl.type,
         position,
-        width: tpl.width ?? 180,
-        height: tpl.height ?? 80,
+        width: nodeWidth,
+        height: nodeHeight,
         rotation: tpl.rotation ?? 0,
         data: {
-          label: tpl.data.label ?? tpl.name,
+          label: tpl.data.label ?? "Node",
           fillColor: tpl.data.fillColor,
           textColor: tpl.data.textColor,
           borderColor: tpl.data.borderColor,
@@ -169,18 +167,18 @@ export function FlowEditor() {
       });
       setNodes((prev) => [
         ...prev,
-        toRFNode({ id, type: tpl.type, position, width: tpl.width ?? 180, height: tpl.height ?? 80, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? tpl.name, fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey }, diagram: { nodes: [], edges: [] } }),
+        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey }, diagram: { nodes: [], edges: [] } }),
       ]);
     } else {
       const id = nanoid();
       setNodes((prev) => [
         ...prev,
-        toRFNode({ id, type: tpl.type, position, width: tpl.width ?? 180, height: tpl.height ?? 80, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? tpl.name, fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey }, diagram: { nodes: [], edges: [] } }),
+        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey }, diagram: { nodes: [], edges: [] } }),
       ]);
       // persistence handled by autosave
     }
     setPendingSpawn(null);
-  }, [pendingSpawn, nodeTemplates, diagram, drillStack.length, addNode, setNodes, setPendingSpawn]);
+  }, [pendingSpawn, nodeTemplates, diagram, drillStack.length, addNode, setNodes, setPendingSpawn, getSpawnPosition]);
 
   React.useEffect(() => {
     setNodes((currentDomain.nodes ?? []).map((n) => toRFNode(n, isNestedView ? {
@@ -252,34 +250,34 @@ export function FlowEditor() {
       const resolvedWidth = typeof styleWidth === "number" ? styleWidth : (typeof dataWidth === "number" ? dataWidth : 180);
       const resolvedHeight = typeof styleHeight === "number" ? styleHeight : (typeof dataHeight === "number" ? dataHeight : 80);
       return ({
-      id: n.id,
-      type: (n.data as RFArchNodeData)?.nodeKind ?? "rectangle",
-      position: n.position,
-      data: {
-        label: String((n.data as RFArchNodeData)?.label ?? ""),
-        description: (n.data as RFArchNodeData)?.description,
-        fillColor: (n.data as RFArchNodeData)?.fillColor,
-        textColor: (n.data as RFArchNodeData)?.textColor,
-        borderColor: (n.data as RFArchNodeData)?.borderColor,
-        iconKey: (n.data as RFArchNodeData)?.iconKey,
-        virtualOf: (n.data as RFArchNodeData)?.virtualOf,
-      },
-      width: resolvedWidth,
-      height: resolvedHeight,
-      rotation: (n.data as RFArchNodeData)?.rotation ?? 0,
-      diagram: baseNodes.find((bn) => bn.id === n.id)?.diagram ?? { nodes: [], edges: [] },
-    } satisfies DiagramNode);
+        id: n.id,
+        type: (n.data as RFArchNodeData)?.nodeKind ?? "rectangle",
+        position: n.position,
+        data: {
+          label: String((n.data as RFArchNodeData)?.label ?? ""),
+          description: (n.data as RFArchNodeData)?.description,
+          fillColor: (n.data as RFArchNodeData)?.fillColor,
+          textColor: (n.data as RFArchNodeData)?.textColor,
+          borderColor: (n.data as RFArchNodeData)?.borderColor,
+          iconKey: (n.data as RFArchNodeData)?.iconKey,
+          virtualOf: (n.data as RFArchNodeData)?.virtualOf,
+        },
+        width: resolvedWidth,
+        height: resolvedHeight,
+        rotation: (n.data as RFArchNodeData)?.rotation ?? 0,
+        diagram: baseNodes.find((bn) => bn.id === n.id)?.diagram ?? { nodes: [], edges: [] },
+      } satisfies DiagramNode);
     });
 
     const stack = drillStackRef.current;
     if (stack.length === 0) {
       const asDomainNodes = toDomainNodes(existing.nodes);
-    const asDomainEdges: DiagramEdge[] = rfEdges.map((e) => {
-      const d: RFArchEdgeData = (e.data ?? {}) as RFArchEdgeData;
+      const asDomainEdges: DiagramEdge[] = rfEdges.map((e) => {
+        const d: RFArchEdgeData = (e.data ?? {}) as RFArchEdgeData;
         return {
-        id: e.id,
-        source: e.source,
-        target: e.target,
+          id: e.id,
+          source: e.source,
+          target: e.target,
           type: d.shape === "smoothstep" || d.shape === "step" || d.shape === "bezier" || d.shape === "straight"
             ? d.shape
             : (e.type === "smoothstep" || e.type === "step" || e.type === "bezier" ? (e.type as DiagramEdge["type"]) : "straight"),
@@ -291,8 +289,8 @@ export function FlowEditor() {
             const background = d.labelBackground;
             return { text, fontSize, color, background };
           })(),
-        arrowStart: Boolean((e as RFEdge).markerStart),
-        arrowEnd: Boolean((e as RFEdge).markerEnd),
+          arrowStart: Boolean((e as RFEdge).markerStart),
+          arrowEnd: Boolean((e as RFEdge).markerEnd),
           strokeColor: d.strokeColor,
           strokeWidth: Number(d.strokeWidth ?? 2),
           dashed: Boolean(d.dashed),
@@ -583,7 +581,7 @@ export function FlowEditor() {
         </div>
       </div>
       {/* Global search below the action buttons */}
-      <div className="border-b p-2">
+      <div className="border-b p-2 gap-2 flex flex-col">
         <div className="relative max-w-xl">
           <input
             className="w-full rounded border px-2 py-1 bg-transparent"
@@ -623,6 +621,37 @@ export function FlowEditor() {
             </div>
           )}
         </div>
+      </div>
+      <div className="border-b p-2 gap-2 flex">
+        {Object.values(nodeTemplates).map((tpl) => {
+          const def = getIconByKey(tpl.data.iconKey);
+          const I = def?.Icon;
+          return (
+            <Button key={tpl.id} size="sm" variant="outline" onClick={() => setPendingSpawn({ templateId: tpl.id })} title={tpl.name} className="inline-flex items-center gap-2">
+              <span
+                className={cn(
+                  "inline-flex items-center justify-center",
+                  tpl.type === "ellipse" ? "rounded-full" : "rounded-sm",
+                  "border w-3.5 h-3.5",
+                  typeof tpl.data.fillColor === "string" && tpl.data.fillColor.startsWith("bg-") ? tpl.data.fillColor : "",
+                  typeof tpl.data.borderColor === "string" && tpl.data.borderColor.startsWith("border-") ? tpl.data.borderColor : "",
+                )}
+                style={{
+                  backgroundColor:
+                    typeof tpl.data.fillColor === "string" && tpl.data.fillColor.startsWith("bg-")
+                      ? undefined
+                      : (tpl.data.fillColor as string | undefined),
+                  borderColor:
+                    typeof tpl.data.borderColor === "string" && tpl.data.borderColor.startsWith("border-")
+                      ? undefined
+                      : (tpl.data.borderColor as string | undefined),
+                }}
+              ></span>
+              {I ? <I className="h-4 w-4" /> : null}
+              <span className="hidden sm:inline text-xs">{tpl.name}</span>
+            </Button>
+          );
+        })}
       </div>
       <div className="flex-1 min-h-0">
         <ReactFlow

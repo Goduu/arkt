@@ -99,4 +99,30 @@ export const DEFAULT_COLORS = {
   text: "#111827",
 } as const;
 
+// React Flow runtime data mirrors used in FlowEditor
+export type RFArchEdgeData = {
+  shape?: "straight" | "bezier" | "smoothstep" | "step";
+  strokeColor?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
+  animated?: boolean;
+  label?: string;
+  fontSize?: number;
+  labelColor?: string;
+  labelBackground?: string;
+};
 
+export type RFArchNodeData = {
+  label: string;
+  description?: string;
+  fillColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  iconKey?: string;
+  nodeKind?: NodeKind;
+  rotation?: number;
+  width?: number;
+  height?: number;
+  virtualOf?: string;
+  onLabelCommit?: (next: string) => void;
+};
