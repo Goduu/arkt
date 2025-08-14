@@ -13,6 +13,7 @@ export interface DiagramNodeDataBase {
   childDiagramId?: DiagramId; // if present, node is expandable to a sub-diagram
   fillColor?: string;
   textColor?: string;
+  fontSize?: number;
   borderColor?: string;
   // Optional small icon to render on the node as a type indicator
   iconKey?: string;
@@ -117,6 +118,7 @@ export type RFArchNodeData = {
   description?: string;
   fillColor?: string;
   textColor?: string;
+  fontSize?: number;
   borderColor?: string;
   iconKey?: string;
   nodeKind?: NodeKind;

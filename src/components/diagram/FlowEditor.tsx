@@ -25,6 +25,7 @@ import type { Diagram, DiagramEdge, DiagramNode, RFArchEdgeData, RFArchNodeData,
 import { Button } from "@/components/ui/button";
 import { Download, Upload, CornerUpLeft, Link as LinkIcon, Square } from "lucide-react";
 import { ArchNode } from "@/components/diagram/nodes/ArchNode";
+import { ArchTextNode } from "@/components/diagram/nodes/ArchTextNode";
 import { NodeControls } from "./NodeControls";
 import { EdgeControls } from "@/components/diagram/edges/EdgeControls";
 import { nanoid } from "nanoid";
@@ -52,7 +53,14 @@ function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: st
   if (opts?.onLabelCommit) {
     baseData.onLabelCommit = (next: string) => opts.onLabelCommit && opts.onLabelCommit(n.id, next);
   }
-  return { id: n.id, position: n.position, data: baseData, type: "archNode", style: { width: n.width ?? 180, height: n.height ?? 80 } } satisfies RFNode;
+  const isText = n.type === "text";
+  return {
+    id: n.id,
+    position: n.position,
+    data: baseData,
+    type: isText ? "archTextNode" : "archNode",
+    style: isText ? {} : { width: n.width ?? 180, height: n.height ?? 80 },
+  } satisfies RFNode;
 }
 
 function toRFEdge(e: DiagramEdge): RFEdge {
@@ -388,6 +396,30 @@ export function FlowEditor() {
     // persistence handled by autosave
   };
 
+  const onAddTextNode = () => {
+    if (!diagram) return;
+    const position = getSpawnPosition(60, 24);
+    if (drillStack.length === 0) {
+      const id = addNode(diagram.id, {
+        type: "text",
+        position,
+        data: { label: "Text" },
+        diagram: { nodes: [], edges: [] },
+      });
+      setNodes((prev) => [
+        ...prev,
+        toRFNode({ id, type: "text", position, data: { label: "Text" }, diagram: { nodes: [], edges: [] } }),
+      ]);
+      return;
+    }
+    const id = nanoid();
+    setNodes((prev) => [
+      ...prev,
+      toRFNode({ id, type: "text", position, data: { label: "Text" }, diagram: { nodes: [], edges: [] } }),
+    ]);
+    // persistence handled by autosave
+  };
+
   // --- Virtual node creation dialog state ---
   type FlattenedNode = { nodeId: string; label: string; diagramId: string; pathIds: string[]; pathLabels: string[]; nodeType: DiagramNode["type"] };
   const [isVirtualDialogOpen, setIsVirtualDialogOpen] = React.useState<boolean>(false);
@@ -515,7 +547,7 @@ export function FlowEditor() {
     }
   };
 
-  const nodeTypes = React.useMemo(() => ({ archNode: ArchNode }), []);
+  const nodeTypes = React.useMemo(() => ({ archNode: ArchNode, archTextNode: ArchTextNode }), []);
 
   const ensureSyncedThen = React.useCallback((after: () => void) => {
     // Persist current visual state to store before navigation
@@ -568,6 +600,7 @@ export function FlowEditor() {
     <div className="flex flex-col h-[calc(100vh-48px)]">
       <div className="flex items-center gap-2 border-b p-2">
         <Button size="sm" onClick={onAddNode}>Add node</Button>
+        <Button size="sm" onClick={onAddTextNode}>Add text</Button>
         <Button size="sm" variant="outline" onClick={() => setIsCreateDialogOpen(true)}>Create node</Button>
         <Button size="sm" variant="outline" onClick={handleAddVirtualNode}>Add virtual node</Button>
         {isNestedView && (

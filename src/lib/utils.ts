@@ -8,6 +8,8 @@ export function cn(...inputs: ClassValue[]): string {
 
 // Explicit list of supported Tailwind background color families for node fill selection
 export const SUPPORTED_TAILWIND_BG_FAMILIES = [
+  "white",
+  "black",
   "slate",
   "gray",
   "zinc",
@@ -32,7 +34,9 @@ export const SUPPORTED_TAILWIND_BG_FAMILIES = [
   "rose",
 ] as const;
 
-export const TAILWIND_MAIN_COLORS = [
+export const TAILWIND_MAIN_COLORS: TailwindBgFamily[] = [
+  "white",
+  "black",
   "slate",
   "stone",
   "red",
@@ -44,11 +48,26 @@ export const TAILWIND_MAIN_COLORS = [
   "pink",
 ] as const;
 
+export const TAILWIND_TEXT_COLORS: TailwindBgFamily[] = [
+  "white",
+  "black",
+  "slate",
+  "amber",
+  "cyan",
+  "indigo",
+  "zinc",
+] as const;
+
 export type TailwindBgFamily = typeof SUPPORTED_TAILWIND_BG_FAMILIES[number];
 export type TailwindBgShade = 300 | 500 | 700;
 
 // Returns a concrete Tailwind class name. Using explicit literals ensures Tailwind can see and compile them.
 export function getTailwindBgClass(family: TailwindBgFamily, shade: TailwindBgShade): string {
+  if (family === "white") {
+    return "bg-white";
+  } else if (family === "black") {
+    return "bg-black";
+  }
   if (family === "slate") {
     if (shade === 300) return "bg-slate-300";
     if (shade === 500) return "bg-slate-500";
@@ -146,6 +165,11 @@ export function getTailwindBgClass(family: TailwindBgFamily, shade: TailwindBgSh
 
 // Returns a concrete Tailwind text color class name using explicit literals.
 export function getTailwindTextClass(family: TailwindBgFamily, shade: TailwindBgShade): string {
+  if (family === "white") {
+    return "text-white";
+  } else if (family === "black") {
+    return "text-black";
+  }
   if (family === "slate") {
     if (shade === 300) return "text-slate-300";
     if (shade === 500) return "text-slate-500";

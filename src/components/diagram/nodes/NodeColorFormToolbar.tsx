@@ -5,11 +5,12 @@ import { useReactFlow } from "reactflow";
 import { cn, getTailwindBgClass, TAILWIND_MAIN_COLORS, type TailwindBgShade, type TailwindBgFamily } from "@/lib/utils";
 
 type Props = {
-    nodeId: string;
+    colors: TailwindBgFamily[];
     fillColor?: string;
+    onClick?: (family: TailwindBgFamily) => void;
 };
 
-export function NodeColorFormToolbar({ nodeId, fillColor }: Props): React.JSX.Element {
+export function NodeColorFormToolbar({ fillColor, colors, onClick }: Props): React.JSX.Element {
     const rf = useReactFlow();
 
     const { currentFamily, currentShade } = React.useMemo(() => {
@@ -19,22 +20,17 @@ export function NodeColorFormToolbar({ nodeId, fillColor }: Props): React.JSX.El
         return { currentFamily: family, currentShade: shade };
     }, [fillColor]);
 
-    const setNodeFill = React.useCallback((family: TailwindBgFamily) => {
-        const nextClass = getTailwindBgClass(family, currentShade);
-        rf.setNodes((prev) =>
-            prev.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, fillColor: nextClass } } : n))
-        );
-    }, [rf, nodeId, currentShade]);
+
 
     return (
         <div className="flex gap-0.5 rounded-lg p-1">
-            {TAILWIND_MAIN_COLORS.map((colorOption) => {
+            {colors.map((colorOption) => {
                 const isActive = currentFamily === colorOption;
                 return (
                     <button
                         key={colorOption}
                         type="button"
-                        onClick={() => setNodeFill(colorOption)}
+                        onClick={() => onClick?.(colorOption)}
                         className={cn(
                             getTailwindBgClass(colorOption, currentShade),
                             "size-6 rounded-full cursor-pointer transition-all duration-200 border",

@@ -15,7 +15,19 @@ import {
 type ShapeKind = "straight" | "bezier" | "smoothstep" | "step";
 
 export function ArchEdge(props: EdgeProps): React.JSX.Element {
-  const { id, sourceX, sourceY, targetX, targetY, data, markerStart, markerEnd, selected } = props;
+  const {
+    id,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    data,
+    markerStart,
+    markerEnd,
+    selected,
+  } = props;
   const instance = useReactFlow();
 
   const shape: ShapeKind = (data?.shape as ShapeKind) ?? "straight";
@@ -33,10 +45,26 @@ export function ArchEdge(props: EdgeProps): React.JSX.Element {
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const [edgePath, labelX, labelY] = React.useMemo(() => {
-    if (shape === "bezier") return getBezierPath({ sourceX, sourceY, targetX, targetY });
-    if (shape === "smoothstep" || shape === "step") return getSmoothStepPath({ sourceX, sourceY, targetX, targetY });
+    if (shape === "bezier")
+      return getBezierPath({
+        sourceX,
+        sourceY,
+        targetX,
+        targetY,
+        sourcePosition,
+        targetPosition,
+      });
+    if (shape === "smoothstep" || shape === "step")
+      return getSmoothStepPath({
+        sourceX,
+        sourceY,
+        targetX,
+        targetY,
+        sourcePosition,
+        targetPosition,
+      });
     return getStraightPath({ sourceX, sourceY, targetX, targetY });
-  }, [shape, sourceX, sourceY, targetX, targetY]);
+  }, [shape, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   React.useEffect(() => {
     if (isEditing) inputRef.current?.focus();

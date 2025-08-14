@@ -11,6 +11,7 @@ import { VirtualLink } from "./types";
 import { VirtualLinkIndicator } from "./VirtualLinkIndicator";
 import { NodeColorFormToolbar } from "./NodeColorFormToolbar";
 import { getIconByKey } from "@/lib/iconRegistry";
+import { cn, getTailwindBgClass, TAILWIND_MAIN_COLORS, TailwindBgFamily } from "@/lib/utils";
 
 export type ArchNodeData = {
   label: string;
@@ -155,15 +156,22 @@ export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
   const border = props.data.borderColor ?? undefined;
 
   const roundedClass = kind === "ellipse" ? "rounded-full" : "rounded-md";
-  const borderClass = isVirtual ? "border border-dashed" : kind === "container" ? "border border-dashed" : "border";
+  const borderClass = isVirtual ? "border border-dashed" : "border";
   const isTailwindBg = typeof fill === "string" && fill.startsWith("bg-");
   const isTailwindText = typeof text === "string" && text.startsWith("text-");
   const isTailwindBorder = typeof border === "string" && border.startsWith("border-");
-  const backgroundStyle = kind === "text" ? undefined : isTailwindBg ? undefined : fill;
+  const backgroundStyle = isTailwindBg ? undefined : fill;
 
   return (
     <div
-      className={`${roundedClass} ${borderClass} group shadow-sm min-w-[140px] w-full h-full ${kind !== "text" && isTailwindBg ? String(fill) : ""} ${isTailwindText ? String(text) : ""} ${isTailwindBorder ? String(border) : ""} ${isVirtual ? "cursor-pointer" : ""} relative`}
+      className={cn(
+        roundedClass, borderClass,
+        "group shadow-sm min-w-32 w-full h-full relative",
+        isTailwindBg ? String(fill) : "",
+        isTailwindText ? String(text) : "",
+        isTailwindBorder ? String(border) : "",
+        isVirtual ? "cursor-pointer" : ""
+      )}
       style={{
         backgroundColor: backgroundStyle,
         color: isTailwindText ? undefined : text,
@@ -202,7 +210,15 @@ export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
         isVisible={props.selected}
         className="nopan"
       >
-        <NodeColorFormToolbar nodeId={id} fillColor={props.data.fillColor} />
+        <NodeColorFormToolbar
+          colors={TAILWIND_MAIN_COLORS}
+          fillColor={props.data.fillColor}
+          onClick={(family: TailwindBgFamily) => {
+            const nextClass = getTailwindBgClass(family, 500);
+            rf.setNodes((prev) =>
+              prev.map((n) => (n.id === id ? { ...n, data: { ...n.data, fillColor: nextClass } } : n))
+            );
+          }} />
 
       </NodeToolbar>
 
