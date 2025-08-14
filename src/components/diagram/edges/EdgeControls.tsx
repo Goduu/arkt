@@ -3,9 +3,15 @@
 import * as React from "react";
 import { type Edge as RFEdge, MarkerType } from "reactflow";
 import { Button } from "@/components/ui/button";
-import { ChevronsLeftRight, ChevronsRight } from "lucide-react";
+import { ChevronsLeftRight, ChevronsRight, Minus, Spline } from "lucide-react";
+import { IoAnalyticsOutline, TbLine, TbLineDashed } from "@/lib/Icons";
+import { StrokeTypeSelector } from "./StrokeTypeSelector";
+import { ShapeKind } from "./types";
+import { StrokeWidth } from "./StrokeWidth";
+import { ColorSelector } from "../ColorSelector";
+import { StrokeType } from "./StrokeType";
+import { EdgeMarker } from "./EdgeMarker";
 
-type ShapeKind = "straight" | "bezier" | "smoothstep" | "step";
 
 type Props = {
   selectedEdge: RFEdge | null;
@@ -72,60 +78,30 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
     onChange(next);
   };
 
-  const toggleStart = () => {
-    const next: RFEdge = {
-      ...selectedEdge,
-      markerStart: selectedEdge?.markerStart ? undefined : { type: MarkerType.ArrowClosed },
-    } as RFEdge;
-    onChange(next);
-  };
-  const toggleEnd = () => {
-    const next: RFEdge = {
-      ...selectedEdge,
-      markerEnd: selectedEdge?.markerEnd ? undefined : { type: MarkerType.ArrowClosed },
-    } as RFEdge;
-    onChange(next);
-  };
-
   if (!selectedEdge) return null;
 
   return (
     <div className="fixed top-16 right-4 w-80 max-h-[80vh] overflow-auto bg-background border shadow-lg rounded-md">
       <div className="px-3 py-2 border-b text-sm font-medium">Edge options</div>
       <div className="p-3 space-y-3 text-sm">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Type</label>
-            <select
-              className="w-full rounded border px-2 py-1 bg-transparent"
-              value={shape}
-              onChange={(e) => { setShape(e.target.value as ShapeKind); commit({ shape: e.target.value as ShapeKind }); }}
-            >
-              <option value="straight">Straight</option>
-              <option value="bezier">Bezier</option>
-              <option value="smoothstep">Smooth Step</option>
-              <option value="step">Step</option>
-            </select>
-          </div>
-          <div className="flex items-end gap-2">
-            <Button size="sm" variant="outline" onClick={toggleStart}><ChevronsLeftRight className="mr-2 h-4 w-4" /> Start</Button>
-            <Button size="sm" variant="outline" onClick={toggleEnd}><ChevronsRight className="mr-2 h-4 w-4" /> End</Button>
-          </div>
+        <div className="grid grid-cols-3 gap-4">
+          <StrokeTypeSelector selectedStrokeType={shape} setStrokeType={setShape} commit={commit} />
+          <StrokeWidth commit={commit} selectedWidth={strokeWidth} setStrokeWidth={setStrokeWidth} />
+          <EdgeMarker value="" onChange={() => { }} />
         </div>
+        <StrokeType value={dashed ? "dashed" : ""} onChange={() => { setDashed(!dashed); commit({ dashed: !dashed }) }} />
 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Stroke color</label>
-            <input type="color" className="w-full h-8 rounded border" value={strokeColor} onChange={(e) => { setStrokeColor(e.target.value); commit({ strokeColor: e.target.value }); }} />
-          </div>
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Stroke width</label>
-            <input type="range" min={1} max={8} value={strokeWidth} onChange={(e) => { const v = Number(e.target.value); setStrokeWidth(v); commit({ strokeWidth: v }); }} className="w-full" />
+            <ColorSelector
+              value={strokeColor}
+              onChange={(color) => { setStrokeColor(color); commit({ strokeColor: color }); }}
+            />
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={dashed} onChange={(e) => { setDashed(e.target.checked); commit({ dashed: e.target.checked }); }} /> dashed</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={animated} onChange={(e) => { setAnimated(e.target.checked); commit({ animated: e.target.checked }); }} /> animated</label>
         </div>
 

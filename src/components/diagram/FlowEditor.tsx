@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Download, Upload, CornerUpLeft, Link as LinkIcon, Square } from "lucide-react";
 import { ArchNode } from "@/components/diagram/nodes/ArchNode";
 import { NodeControls } from "./NodeControls";
-import { EdgeControls } from "@/components/diagram/EdgeControls";
+import { EdgeControls } from "@/components/diagram/edges/EdgeControls";
 import { nanoid } from "nanoid";
 import { FocusIntentHandler } from "./FocusIntentHandler";
 import { ArchEdge } from "@/components/diagram/edges/ArchEdge";

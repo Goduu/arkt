@@ -4,7 +4,7 @@ import * as React from "react";
 import type { Node as RFNode } from "reactflow";
 import { X } from "lucide-react";
 import { getTailwindBgClass, getTailwindTextClass, type TailwindBgFamily, type TailwindBgShade } from "@/lib/utils";
-import { ColorSelector } from "@/components/diagram/ColorSelector";
+import { ColorSelector } from "@/components/diagram/ColorSelectorO";
 import { Button } from "@/components/ui/button";
 
 type Props = {

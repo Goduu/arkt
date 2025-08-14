@@ -48,10 +48,10 @@ export function ArchEdge(props: EdgeProps): React.JSX.Element {
       prev.map((e) =>
         e.id === id
           ? {
-              ...e,
-              label: nextValue,
-              data: { ...(e.data ?? {}), label: nextValue },
-            }
+            ...e,
+            label: nextValue,
+            data: { ...(e.data ?? {}), label: nextValue },
+          }
           : e
       )
     );
@@ -68,9 +68,7 @@ export function ArchEdge(props: EdgeProps): React.JSX.Element {
         markerStart={markerStart}
         markerEnd={markerEnd}
         style={{ stroke: strokeColor, strokeWidth, strokeDasharray: dashed ? 6 : undefined }}
-        className={`react-flow__edge-path ${animated ? "animated" : ""} ${selected ? "react-flow__edge-selected" : ""}`}
         interactionWidth={20}
-        onDoubleClick={onDoubleClick}
       />
 
       <EdgeLabelRenderer>
