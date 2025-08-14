@@ -7,9 +7,10 @@ import {
     type TailwindBgShade,
     getTailwindBgClass,
     getTailwindTextClass,
+    getTailwindBorderClass,
 } from "@/lib/utils";
 
-type Mode = "bg" | "text";
+type Mode = "bg" | "text" | "border";
 
 type Props = {
     label: string;
@@ -32,17 +33,21 @@ export function ColorSelector({ label, value, mode = "bg", onChange }: Props): R
     }, [mode, value]);
 
     const renderSwatch = (s: TailwindBgShade) => {
-        const cls = mode === "bg" ? getTailwindBgClass(family, s) : getTailwindTextClass(family, s);
+        const cls = mode === "bg"
+            ? getTailwindBgClass(family, s)
+            : mode === "text"
+            ? getTailwindTextClass(family, s)
+            : getTailwindBorderClass(family, s);
         const isActive = shade === s;
         return (
             <button
                 key={s}
                 type="button"
-                className={`h-6 w-6 rounded border ${mode === "bg" ? cls : "bg-white " + cls} ${isActive ? "ring-2 ring-offset-1 ring-primary" : ""}`}
+                className={`h-6 w-6 rounded border ${mode === "bg" ? cls : mode === "text" ? "bg-white " + cls : "bg-white " + cls} ${isActive ? "ring-2 ring-offset-1 ring-primary" : ""}`}
                 aria-label={`Set shade ${s}`}
                 onClick={() => {
                     setShade(s);
-                    const next = mode === "bg" ? getTailwindBgClass(family, s) : getTailwindTextClass(family, s);
+                    const next = mode === "bg" ? getTailwindBgClass(family, s) : mode === "text" ? getTailwindTextClass(family, s) : getTailwindBorderClass(family, s);
                     onChange(next);
                 }}
                 title={`${family} ${s}`}
@@ -60,7 +65,11 @@ export function ColorSelector({ label, value, mode = "bg", onChange }: Props): R
                     onChange={(e) => {
                         const nextFamily = e.target.value as TailwindBgFamily;
                         setFamily(nextFamily);
-                        const next = mode === "bg" ? getTailwindBgClass(nextFamily, shade) : getTailwindTextClass(nextFamily, shade);
+                        const next = mode === "bg"
+                            ? getTailwindBgClass(nextFamily, shade)
+                            : mode === "text"
+                            ? getTailwindTextClass(nextFamily, shade)
+                            : getTailwindBorderClass(nextFamily, shade);
                         onChange(next);
                     }}
                 >

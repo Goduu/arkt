@@ -1,37 +1,39 @@
 import { useAppStore } from "@/lib/store";
 import { Link as LinkIcon } from "lucide-react";
 import { VirtualLink } from "./types";
-import { Dispatch, SetStateAction, useState } from "react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 type VirtualLinkIndicatorProps = {
     virtualLinksToThisNode: VirtualLink[];
+    className?: string
 }
 
-export function VirtualLinkIndicator({ virtualLinksToThisNode }: VirtualLinkIndicatorProps): React.JSX.Element {
+export function VirtualLinkIndicator({ virtualLinksToThisNode, className }: VirtualLinkIndicatorProps): React.JSX.Element {
     const { setPendingFocus, navigateTo, setDrillStack } = useAppStore();
-    const [showLinks, setShowLinks] = useState(false);
+    const [open, setOpen] = useState(false);
 
-
-    const handleCLick = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e.stopPropagation();
-        e.preventDefault();
-        setShowLinks((v) => !v);
-    }
+    const lengthTruncated = virtualLinksToThisNode.length > 99 ? "99+" : virtualLinksToThisNode.length
 
     return (
-        <div className="absolute -top-2 -right-2">
-            <button
-                className="flex cursor-pointer z-30 items-center gap-1 rounded-full bg-blue-600 text-white text-[10px] px-2 py-1 shadow"
-                onClick={handleCLick}
-                title="Virtual links"
-            >
-                <LinkIcon className="h-3 w-3" />
-                {virtualLinksToThisNode.length}
-            </button>
-            {showLinks && (
-                <div className="absolute right-0 mt-1 w-[260px] max-h-60 overflow-auto rounded-md border bg-background text-foreground text-xs shadow-lg z-10">
+        <div className={cn("absolute -top-2 -right-2", className)}>
+            <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild onClick={(e) => { e.stopPropagation(); }}>
+                    <Button
+                        size="icon"
+                        variant="outline"
+                        className="flex opacity-5 cursor-pointer z-30 p-0 h-4 w-7 gap-0.5 rounded-full text-[6px] shadow"
+                        title="Virtual links"
+                    >
+                        <LinkIcon className="size-2" />
+                        {lengthTruncated}
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" sideOffset={6} className="w-[260px] p-0 text-xs">
                     <div className="px-2 py-1 border-b text-[11px] font-medium">Linked via virtual nodes</div>
-                    <ul>
+                    <ul className="max-h-60 overflow-auto">
                         {virtualLinksToThisNode.map((lk, idx) => (
                             <li key={`${lk.diagramId}:${idx}`} className="px-2 py-2 border-b last:border-0">
                                 <div className="flex items-center justify-between gap-2">
@@ -43,12 +45,10 @@ export function VirtualLinkIndicator({ virtualLinksToThisNode }: VirtualLinkIndi
                                         className="shrink-0 rounded border px-2 py-0.5 text-[11px] hover:bg-muted"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            // Navigate to the diagram where the connection happens and open its container path
                                             navigateTo(lk.diagramId);
-                                            // Set pending focus to the subdiagram where the connection occurs
                                             setPendingFocus({ diagramId: lk.diagramId, containerPathIds: lk.containerPathIds, focusNodeIds: [lk.viaVirtualNodeId, lk.otherEndNodeId] });
                                             setTimeout(() => setDrillStack(lk.containerPathIds), 0);
-                                            setShowLinks(false);
+                                            setOpen(false);
                                         }}
                                     >
                                         Open
@@ -58,8 +58,8 @@ export function VirtualLinkIndicator({ virtualLinksToThisNode }: VirtualLinkIndi
                             </li>
                         ))}
                     </ul>
-                </div>
-            )}
+                </PopoverContent>
+            </Popover>
         </div>
     )
 }

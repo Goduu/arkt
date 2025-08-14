@@ -12,7 +12,7 @@ import ReactFlow, {
   type Node as RFNode,
   type OnConnectStart,
   type OnConnectEnd,
-  useReactFlow as useRFInstance,
+  // useReactFlow as useRFInstance,
   useEdgesState,
   useNodesState,
   MarkerType,
@@ -29,6 +29,7 @@ import { EdgeControls } from "@/components/diagram/edges/EdgeControls";
 import { nanoid } from "nanoid";
 import { FocusIntentHandler } from "./FocusIntentHandler";
 import { ArchEdge } from "@/components/diagram/edges/ArchEdge";
+import { CreateNodeTemplateDialog } from "./CreateNodeTemplateDialog";
 
 type RFArchEdgeData = {
   shape?: "straight" | "bezier" | "smoothstep" | "step";
@@ -42,12 +43,29 @@ type RFArchEdgeData = {
   labelBackground?: string;
 };
 
+type RFArchNodeData = {
+  label: string;
+  description?: string;
+  fillColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  iconKey?: string;
+  nodeKind?: DiagramNode["type"];
+  rotation?: number;
+  width?: number;
+  height?: number;
+  virtualOf?: string;
+  onLabelCommit?: (next: string) => void;
+};
+
 function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: string) => void }): RFNode {
-  const baseData: any = {
+  const baseData: RFArchNodeData = {
     label: n.data.label,
     description: n.data.description,
     fillColor: n.data.fillColor,
     textColor: n.data.textColor,
+    borderColor: n.data.borderColor,
+    iconKey: n.data.iconKey,
     nodeKind: n.type,
     rotation: n.rotation ?? 0,
     width: n.width,
@@ -55,7 +73,7 @@ function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: st
     virtualOf: n.data?.virtualOf,
   };
   if (opts?.onLabelCommit) {
-    baseData.onLabelCommit = (next: string) => opts.onLabelCommit!(n.id, next);
+    baseData.onLabelCommit = (next: string) => opts.onLabelCommit && opts.onLabelCommit(n.id, next);
   }
   return { id: n.id, position: n.position, data: baseData, type: "archNode", style: { width: n.width ?? 180, height: n.height ?? 80 } } satisfies RFNode;
 }
@@ -85,7 +103,7 @@ function toRFEdge(e: DiagramEdge): RFEdge {
 }
 
 export function FlowEditor() {
-  const { diagrams, currentId, setNodesEdges, addNode, navigateTo, drillStack, pushDrill, popDrill, setDrillStack, setPendingFocus } = useAppStore();
+  const { diagrams, currentId, setNodesEdges, addNode, navigateTo, drillStack, pushDrill, popDrill, setDrillStack, setPendingFocus, pendingSpawn, setPendingSpawn, nodeTemplates } = useAppStore();
   const diagram: Diagram | undefined = diagrams[currentId];
 
   // Drill stack is now global in store
@@ -124,6 +142,45 @@ export function FlowEditor() {
   const [selectedEdge, setSelectedEdge] = React.useState<RFEdge | null>(null);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const connectFromHandle = React.useRef<"source" | "target" | null>(null);
+  // Spawn node from template when request is present
+  React.useEffect(() => {
+    if (!pendingSpawn) return;
+    const tpl = nodeTemplates[pendingSpawn.templateId];
+    if (!tpl || !diagram) {
+      setPendingSpawn(null);
+      return;
+    }
+    const position = { x: Math.random() * 300 + 100, y: Math.random() * 200 + 100 };
+    if (drillStack.length === 0) {
+      const id = addNode(diagram.id, {
+        type: tpl.type,
+        position,
+        width: tpl.width ?? 180,
+        height: tpl.height ?? 80,
+        rotation: tpl.rotation ?? 0,
+        data: {
+          label: tpl.data.label ?? tpl.name,
+          fillColor: tpl.data.fillColor,
+          textColor: tpl.data.textColor,
+          borderColor: tpl.data.borderColor,
+          iconKey: tpl.data.iconKey,
+        },
+        diagram: { nodes: [], edges: [] },
+      });
+      setNodes((prev) => [
+        ...prev,
+        toRFNode({ id, type: tpl.type, position, width: tpl.width ?? 180, height: tpl.height ?? 80, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? tpl.name, fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey }, diagram: { nodes: [], edges: [] } }),
+      ]);
+    } else {
+      const id = nanoid();
+      setNodes((prev) => [
+        ...prev,
+        toRFNode({ id, type: tpl.type, position, width: tpl.width ?? 180, height: tpl.height ?? 80, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? tpl.name, fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey }, diagram: { nodes: [], edges: [] } }),
+      ]);
+      // persistence handled by autosave
+    }
+    setPendingSpawn(null);
+  }, [pendingSpawn, nodeTemplates, diagram, drillStack.length, addNode, setNodes, setPendingSpawn]);
 
   React.useEffect(() => {
     setNodes((currentDomain.nodes ?? []).map((n) => toRFNode(n, isNestedView ? {
@@ -187,28 +244,38 @@ export function FlowEditor() {
     const rfNodes = nodesRef.current;
     const rfEdges = edgesRef.current;
 
-    const toDomainNodes = (baseNodes: DiagramNode[]) => rfNodes.map((n) => ({
+    const toDomainNodes = (baseNodes: DiagramNode[]) => rfNodes.map((n) => {
+      const styleWidth = (n as RFNode).style?.width;
+      const styleHeight = (n as RFNode).style?.height;
+      const dataWidth = (n.data as RFArchNodeData)?.width;
+      const dataHeight = (n.data as RFArchNodeData)?.height;
+      const resolvedWidth = typeof styleWidth === "number" ? styleWidth : (typeof dataWidth === "number" ? dataWidth : 180);
+      const resolvedHeight = typeof styleHeight === "number" ? styleHeight : (typeof dataHeight === "number" ? dataHeight : 80);
+      return ({
       id: n.id,
-      type: (n.data as any)?.nodeKind ?? "rectangle",
+      type: (n.data as RFArchNodeData)?.nodeKind ?? "rectangle",
       position: n.position,
       data: {
-        label: String((n.data as any)?.label ?? ""),
-        description: (n.data as any)?.description,
-        fillColor: (n.data as any)?.fillColor,
-        textColor: (n.data as any)?.textColor,
-        virtualOf: (n.data as any)?.virtualOf,
+        label: String((n.data as RFArchNodeData)?.label ?? ""),
+        description: (n.data as RFArchNodeData)?.description,
+        fillColor: (n.data as RFArchNodeData)?.fillColor,
+        textColor: (n.data as RFArchNodeData)?.textColor,
+        borderColor: (n.data as RFArchNodeData)?.borderColor,
+        iconKey: (n.data as RFArchNodeData)?.iconKey,
+        virtualOf: (n.data as RFArchNodeData)?.virtualOf,
       },
-      width: (n as any).style?.width ?? (n.data as any)?.width ?? 180,
-      height: (n as any).style?.height ?? (n.data as any)?.height ?? 80,
-      rotation: (n.data as any)?.rotation ?? 0,
+      width: resolvedWidth,
+      height: resolvedHeight,
+      rotation: (n.data as RFArchNodeData)?.rotation ?? 0,
       diagram: baseNodes.find((bn) => bn.id === n.id)?.diagram ?? { nodes: [], edges: [] },
-    } satisfies DiagramNode));
+    } satisfies DiagramNode);
+    });
 
     const stack = drillStackRef.current;
     if (stack.length === 0) {
       const asDomainNodes = toDomainNodes(existing.nodes);
-      const asDomainEdges: DiagramEdge[] = rfEdges.map((e) => {
-        const d = (e.data ?? {}) as RFArchEdgeData;
+    const asDomainEdges: DiagramEdge[] = rfEdges.map((e) => {
+      const d: RFArchEdgeData = (e.data ?? {}) as RFArchEdgeData;
         return {
         id: e.id,
         source: e.source,
@@ -224,8 +291,8 @@ export function FlowEditor() {
             const background = d.labelBackground;
             return { text, fontSize, color, background };
           })(),
-        arrowStart: Boolean((e as any).markerStart),
-        arrowEnd: Boolean((e as any).markerEnd),
+        arrowStart: Boolean((e as RFEdge).markerStart),
+        arrowEnd: Boolean((e as RFEdge).markerEnd),
           strokeColor: d.strokeColor,
           strokeWidth: Number(d.strokeWidth ?? 2),
           dashed: Boolean(d.dashed),
@@ -256,7 +323,7 @@ export function FlowEditor() {
     })();
     const updatedNestedNodes = toDomainNodes(baseNested.nodes ?? []);
     const updatedNestedEdges: DiagramEdge[] = rfEdges.map((e) => {
-      const d = (e.data ?? {}) as RFArchEdgeData;
+      const d: RFArchEdgeData = (e.data ?? {}) as RFArchEdgeData;
       return {
         id: e.id,
         source: e.source,
@@ -272,8 +339,8 @@ export function FlowEditor() {
           const background = d.labelBackground;
           return { text, fontSize, color, background };
         })(),
-        arrowStart: Boolean((e as any).markerStart),
-        arrowEnd: Boolean((e as any).markerEnd),
+        arrowStart: Boolean((e as RFEdge).markerStart),
+        arrowEnd: Boolean((e as RFEdge).markerEnd),
         strokeColor: d.strokeColor,
         strokeWidth: Number(d.strokeWidth ?? 2),
         dashed: Boolean(d.dashed),
@@ -460,9 +527,10 @@ export function FlowEditor() {
   }, [syncToStore]);
 
   const onNodeDoubleClick = React.useCallback((_: React.MouseEvent, node: RFNode) => {
-    const isVirtual = (node.data as any)?.nodeKind === "virtual" || Boolean((node.data as any)?.virtualOf);
+    const nodeData = node.data as Partial<RFArchNodeData>;
+    const isVirtual = nodeData.nodeKind === "virtual" || Boolean(nodeData.virtualOf);
     if (isVirtual) {
-      const target = findNodeAcrossDiagrams((node.data as any)?.virtualOf);
+      const target = findNodeAcrossDiagrams(nodeData.virtualOf);
       if (target) {
         ensureSyncedThen(() => {
           if (currentId !== target.diagramId) navigateTo(target.diagramId);
@@ -476,9 +544,10 @@ export function FlowEditor() {
   }, [ensureSyncedThen, findNodeAcrossDiagrams, currentId, navigateTo, pushDrill, setDrillStack]);
 
   const onNodeClick = React.useCallback((_: React.MouseEvent, node: RFNode) => {
-    const isVirtual = (node.data as any)?.nodeKind === "virtual" || Boolean((node.data as any)?.virtualOf);
+    const nodeData = node.data as Partial<RFArchNodeData>;
+    const isVirtual = nodeData.nodeKind === "virtual" || Boolean(nodeData.virtualOf);
     if (!isVirtual) return;
-    const target = findNodeAcrossDiagrams((node.data as any)?.virtualOf);
+    const target = findNodeAcrossDiagrams(nodeData.virtualOf);
     if (!target) return;
     ensureSyncedThen(() => {
       if (currentId !== target.diagramId) navigateTo(target.diagramId);
@@ -495,10 +564,13 @@ export function FlowEditor() {
     setGlobalSearch("");
   }, [ensureSyncedThen, currentId, navigateTo, setDrillStack, setPendingFocus]);
 
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState<boolean>(false);
+
   return (
     <div className="flex flex-col h-[calc(100vh-48px)]">
       <div className="flex items-center gap-2 border-b p-2">
         <Button size="sm" onClick={onAddNode}>Add node</Button>
+        <Button size="sm" variant="outline" onClick={() => setIsCreateDialogOpen(true)}>Create node</Button>
         <Button size="sm" variant="outline" onClick={handleAddVirtualNode}>Add virtual node</Button>
         {isNestedView && (
           <Button size="sm" variant="outline" onClick={onBack}><CornerUpLeft className="mr-2 h-4 w-4" /> Back</Button>
@@ -580,10 +652,12 @@ export function FlowEditor() {
           <MiniMap />
           <Controls />
         </ReactFlow>
+        <CreateNodeTemplateDialog isOpen={isCreateDialogOpen} onClose={() => setIsCreateDialogOpen(false)} />
         <NodeControls
           selectedNode={(() => {
             const n = selectedNodeId ? nodes.find((nn) => nn.id === selectedNodeId) ?? null : null;
-            const isVirtual = n ? ((n.data as any)?.nodeKind === "virtual" || Boolean((n.data as any)?.virtualOf)) : false;
+            const nodeData = (n?.data ?? {}) as Partial<RFArchNodeData>;
+            const isVirtual = n ? (nodeData.nodeKind === "virtual" || Boolean(nodeData.virtualOf)) : false;
             return isVirtual ? null : n;
           })()}
           onChange={(node: RFNode) => {

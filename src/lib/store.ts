@@ -3,13 +3,15 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { nanoid } from "nanoid";
-import type { AppStateSnapshot, Diagram, DiagramEdge, DiagramId, DiagramMeta, DiagramNode } from "./types";
+import type { AppStateSnapshot, Diagram, DiagramEdge, DiagramId, DiagramMeta, DiagramNode, NodeTemplate } from "./types";
 
 export interface AppStoreState {
   diagrams: Record<DiagramId, Diagram>;
   rootId: DiagramId;
   currentId: DiagramId;
   drillStack: string[]; // path of node ids inside the current diagram
+  nodeTemplates: Record<string, NodeTemplate>;
+  pendingSpawn?: { templateId: string } | null;
   // transient UI intents
   pendingFocus: null | { diagramId: DiagramId; containerPathIds: string[]; focusNodeIds?: string[]; focusEdgeId?: string };
   // actions
@@ -22,6 +24,10 @@ export interface AppStoreState {
   popDrill: () => void;
   clearDrillStack: () => void;
   setPendingFocus: (focus: AppStoreState["pendingFocus"]) => void;
+  createNodeTemplate: (tpl: Omit<NodeTemplate, "id" | "createdAt" | "updatedAt">) => string;
+  updateNodeTemplate: (tpl: NodeTemplate) => void;
+  deleteNodeTemplate: (tplId: string) => void;
+  setPendingSpawn: (spawn: AppStoreState["pendingSpawn"]) => void;
   addNode: (diagramId: DiagramId, node: Omit<DiagramNode, "id">) => string;
   updateNode: (diagramId: DiagramId, node: DiagramNode) => void;
   removeNode: (diagramId: DiagramId, nodeId: string) => void;
@@ -59,6 +65,8 @@ export const useAppStore = create<AppStoreState>()(
       rootId: initialRoot.id,
       currentId: initialRoot.id,
       drillStack: [],
+      nodeTemplates: {},
+      pendingSpawn: null,
       pendingFocus: null,
 
   createDiagram: (name: string, parentId?: DiagramId) => {
@@ -98,6 +106,35 @@ export const useAppStore = create<AppStoreState>()(
   clearDrillStack: () => set({ drillStack: [] }),
 
   setPendingFocus: (focus) => set({ pendingFocus: focus }),
+
+  createNodeTemplate: (tpl) => {
+    const id = nanoid();
+    set((state) => {
+      const nowTs = now();
+      const record: NodeTemplate = { id, createdAt: nowTs, updatedAt: nowTs, ...tpl };
+      return { nodeTemplates: { ...state.nodeTemplates, [id]: record } };
+    });
+    return id;
+  },
+
+  updateNodeTemplate: (tpl) => {
+    set((state) => {
+      const exists = state.nodeTemplates[tpl.id];
+      if (!exists) return {} as AppStoreState;
+      const next: NodeTemplate = { ...tpl, updatedAt: now() };
+      return { nodeTemplates: { ...state.nodeTemplates, [tpl.id]: next } };
+    });
+  },
+
+  deleteNodeTemplate: (tplId) => {
+    set((state) => {
+      const copy = { ...state.nodeTemplates };
+      delete copy[tplId];
+      return { nodeTemplates: copy };
+    });
+  },
+
+  setPendingSpawn: (spawn) => set({ pendingSpawn: spawn }),
 
   addNode: (diagramId: DiagramId, node: Omit<DiagramNode, "id">) => {
     const id = nanoid();
@@ -204,6 +241,7 @@ export const useAppStore = create<AppStoreState>()(
         const snapshot: AppStateSnapshot = {
           diagrams: state.diagrams,
           rootId: state.rootId,
+          nodeTemplates: state.nodeTemplates,
         };
         return snapshot;
       },
@@ -213,6 +251,7 @@ export const useAppStore = create<AppStoreState>()(
           diagrams: snapshot.diagrams,
           rootId: snapshot.rootId,
           currentId: snapshot.rootId,
+          nodeTemplates: snapshot.nodeTemplates ?? {},
         });
       },
     }),
@@ -220,7 +259,7 @@ export const useAppStore = create<AppStoreState>()(
       name: "archkt-store",
       storage: createJSONStorage(() => localStorage),
       version: 1,
-      partialize: (state) => ({ diagrams: state.diagrams, rootId: state.rootId, currentId: state.currentId, drillStack: state.drillStack }),
+      partialize: (state) => ({ diagrams: state.diagrams, rootId: state.rootId, currentId: state.currentId, drillStack: state.drillStack, nodeTemplates: state.nodeTemplates }),
     }
   )
 );

@@ -13,6 +13,9 @@ export interface DiagramNodeDataBase {
   childDiagramId?: DiagramId; // if present, node is expandable to a sub-diagram
   fillColor?: string;
   textColor?: string;
+  borderColor?: string;
+  // Optional small icon to render on the node as a type indicator
+  iconKey?: string;
   // If present, this node is a virtual reference to another node id
   // Virtual nodes mirror the target node's label and cannot be edited
   virtualOf?: string;
@@ -70,9 +73,25 @@ export interface SubDiagram {
   edges: DiagramEdge[];
 }
 
+export interface NodeTemplateMeta {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface NodeTemplate extends NodeTemplateMeta {
+  type: NodeKind;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  data: Pick<DiagramNodeDataBase, "fillColor" | "textColor" | "iconKey" | "borderColor"> & { label?: string };
+}
+
 export interface AppStateSnapshot {
   diagrams: Record<DiagramId, Diagram>;
   rootId: DiagramId;
+  nodeTemplates?: Record<string, NodeTemplate>;
 }
 
 export const DEFAULT_COLORS = {

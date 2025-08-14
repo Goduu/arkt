@@ -240,4 +240,100 @@ export function getTailwindTextClass(family: TailwindBgFamily, shade: TailwindBg
   return "text-blue-700";
 }
 
+// Returns a concrete Tailwind border color class name using explicit literals.
+export function getTailwindBorderClass(family: TailwindBgFamily, shade: TailwindBgShade): string {
+  if (family === "slate") {
+    if (shade === 300) return "border-slate-300";
+    if (shade === 500) return "border-slate-500";
+    return "border-slate-700";
+  } else if (family === "gray") {
+    if (shade === 300) return "border-gray-300";
+    if (shade === 500) return "border-gray-500";
+    return "border-gray-700";
+  } else if (family === "zinc") {
+    if (shade === 300) return "border-zinc-300";
+    if (shade === 500) return "border-zinc-500";
+    return "border-zinc-700";
+  } else if (family === "neutral") {
+    if (shade === 300) return "border-neutral-300";
+    if (shade === 500) return "border-neutral-500";
+    return "border-neutral-700";
+  } else if (family === "stone") {
+    if (shade === 300) return "border-stone-300";
+    if (shade === 500) return "border-stone-500";
+    return "border-stone-700";
+  } else if (family === "red") {
+    if (shade === 300) return "border-red-300";
+    if (shade === 500) return "border-red-500";
+    return "border-red-700";
+  } else if (family === "orange") {
+    if (shade === 300) return "border-orange-300";
+    if (shade === 500) return "border-orange-500";
+    return "border-orange-700";
+  } else if (family === "amber") {
+    if (shade === 300) return "border-amber-300";
+    if (shade === 500) return "border-amber-500";
+    return "border-amber-700";
+  } else if (family === "yellow") {
+    if (shade === 300) return "border-yellow-300";
+    if (shade === 500) return "border-yellow-500";
+    return "border-yellow-700";
+  } else if (family === "lime") {
+    if (shade === 300) return "border-lime-300";
+    if (shade === 500) return "border-lime-500";
+    return "border-lime-700";
+  } else if (family === "green") {
+    if (shade === 300) return "border-green-300";
+    if (shade === 500) return "border-green-500";
+    return "border-green-700";
+  } else if (family === "emerald") {
+    if (shade === 300) return "border-emerald-300";
+    if (shade === 500) return "border-emerald-500";
+    return "border-emerald-700";
+  } else if (family === "teal") {
+    if (shade === 300) return "border-teal-300";
+    if (shade === 500) return "border-teal-500";
+    return "border-teal-700";
+  } else if (family === "cyan") {
+    if (shade === 300) return "border-cyan-300";
+    if (shade === 500) return "border-cyan-500";
+    return "border-cyan-700";
+  } else if (family === "sky") {
+    if (shade === 300) return "border-sky-300";
+    if (shade === 500) return "border-sky-500";
+    return "border-sky-700";
+  } else if (family === "blue") {
+    if (shade === 300) return "border-blue-300";
+    if (shade === 500) return "border-blue-500";
+    return "border-blue-700";
+  } else if (family === "indigo") {
+    if (shade === 300) return "border-indigo-300";
+    if (shade === 500) return "border-indigo-500";
+    return "border-indigo-700";
+  } else if (family === "violet") {
+    if (shade === 300) return "border-violet-300";
+    if (shade === 500) return "border-violet-500";
+    return "border-violet-700";
+  } else if (family === "purple") {
+    if (shade === 300) return "border-purple-300";
+    if (shade === 500) return "border-purple-500";
+    return "border-purple-700";
+  } else if (family === "fuchsia") {
+    if (shade === 300) return "border-fuchsia-300";
+    if (shade === 500) return "border-fuchsia-500";
+    return "border-fuchsia-700";
+  } else if (family === "pink") {
+    if (shade === 300) return "border-pink-300";
+    if (shade === 500) return "border-pink-500";
+    return "border-pink-700";
+  } else if (family === "rose") {
+    if (shade === 300) return "border-rose-300";
+    if (shade === 500) return "border-rose-500";
+    return "border-rose-700";
+  }
+  if (shade === 300) return "border-blue-300";
+  if (shade === 500) return "border-blue-500";
+  return "border-blue-700";
+}
+
 

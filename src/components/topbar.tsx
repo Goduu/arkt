@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, Home, Plus } from "lucide-react";
+import { getIconByKey } from "@/lib/iconRegistry";
+import { cn, getTailwindBgClass } from "@/lib/utils";
 
 export function Topbar() {
-  const { currentId, diagrams, rootId, navigateTo, createDiagram, drillStack, setDrillStack } = useAppStore();
+  const { currentId, diagrams, rootId, navigateTo, createDiagram, drillStack, setDrillStack, nodeTemplates, setPendingSpawn } = useAppStore();
   const segments: string[] = [];
 
   let cursor = currentId;
@@ -74,7 +76,36 @@ export function Topbar() {
           </>
         )}
       </nav>
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2">
+        {Object.values(nodeTemplates).map((tpl) => {
+          const def = getIconByKey(tpl.data.iconKey);
+          const I = def?.Icon;
+          return (
+            <Button key={tpl.id} size="sm" variant="outline" onClick={() => setPendingSpawn({ templateId: tpl.id })} title={tpl.name} className="inline-flex items-center gap-2">
+              <span
+                className={cn(
+                  "inline-flex items-center justify-center",
+                  tpl.type === "ellipse" ? "rounded-full" : "rounded-sm",
+                  "border w-3.5 h-3.5",
+                  typeof tpl.data.fillColor === "string" && tpl.data.fillColor.startsWith("bg-") ? tpl.data.fillColor : "",
+                  typeof tpl.data.borderColor === "string" && tpl.data.borderColor.startsWith("border-") ? tpl.data.borderColor : "",
+                )}
+                style={{
+                  backgroundColor:
+                    typeof tpl.data.fillColor === "string" && tpl.data.fillColor.startsWith("bg-")
+                      ? undefined
+                      : (tpl.data.fillColor as string | undefined),
+                  borderColor:
+                    typeof tpl.data.borderColor === "string" && tpl.data.borderColor.startsWith("border-")
+                      ? undefined
+                      : (tpl.data.borderColor as string | undefined),
+                }}
+              ></span>
+              {I ? <I className="h-4 w-4" /> : null}
+              <span className="hidden sm:inline text-xs">{tpl.name}</span>
+            </Button>
+          );
+        })}
         <Button size="sm" onClick={onNewChild}>
           <Plus className="mr-2 h-4 w-4" /> New
         </Button>

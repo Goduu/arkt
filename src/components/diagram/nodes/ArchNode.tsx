@@ -7,15 +7,17 @@ import { NodeResizer } from "@reactflow/node-resizer";
 import "@reactflow/node-resizer/dist/style.css";
 import { useAppStore } from "@/lib/store";
 import type { Diagram, DiagramEdge, DiagramNode, NodeKind } from "@/lib/types";
-import { Link as LinkIcon } from "lucide-react";
 import { VirtualLink } from "./types";
 import { VirtualLinkIndicator } from "./VirtualLinkIndicator";
 import { NodeColorFormToolbar } from "./NodeColorFormToolbar";
+import { getIconByKey } from "@/lib/iconRegistry";
 
-type ArchNodeData = {
+export type ArchNodeData = {
   label: string;
   fillColor?: string;
   textColor?: string;
+  borderColor?: string;
+  iconKey?: string;
   nodeKind?: NodeKind;
   rotation?: number;
   virtualOf?: string;
@@ -24,7 +26,7 @@ type ArchNodeData = {
 
 export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
   const { id } = props;
-  const { diagrams, currentId, updateNode, renameDiagram, navigateTo, setDrillStack, setPendingFocus } = useAppStore();
+  const { diagrams, currentId, updateNode, renameDiagram } = useAppStore();
   const diagram = diagrams[currentId];
   const domainNode: DiagramNode | undefined = diagram?.nodes.find((n) => n.id === id);
   const [value, setValue] = React.useState<string>(props.data.label);
@@ -148,24 +150,39 @@ export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
 
   const fill = props.data.fillColor ?? undefined;
   const text = props.data.textColor ?? undefined;
+  const iconKey = props.data.iconKey ?? undefined;
   const rotation = props.data.rotation ?? 0;
+  const border = props.data.borderColor ?? undefined;
 
   const roundedClass = kind === "ellipse" ? "rounded-full" : "rounded-md";
   const borderClass = isVirtual ? "border border-dashed" : kind === "container" ? "border border-dashed" : "border";
   const isTailwindBg = typeof fill === "string" && fill.startsWith("bg-");
   const isTailwindText = typeof text === "string" && text.startsWith("text-");
+  const isTailwindBorder = typeof border === "string" && border.startsWith("border-");
   const backgroundStyle = kind === "text" ? undefined : isTailwindBg ? undefined : fill;
 
   return (
     <div
-      className={`${roundedClass} ${borderClass} shadow-sm min-w-[140px] w-full h-full ${kind !== "text" && isTailwindBg ? String(fill) : ""} ${isTailwindText ? String(text) : ""} ${isVirtual ? "cursor-pointer" : ""} relative`}
+      className={`${roundedClass} ${borderClass} group shadow-sm min-w-[140px] w-full h-full ${kind !== "text" && isTailwindBg ? String(fill) : ""} ${isTailwindText ? String(text) : ""} ${isTailwindBorder ? String(border) : ""} ${isVirtual ? "cursor-pointer" : ""} relative`}
       style={{
         backgroundColor: backgroundStyle,
         color: isTailwindText ? undefined : text,
+        borderColor: isTailwindBorder ? undefined : border,
         transform: rotation ? `rotate(${rotation}deg)` : undefined,
       }}
     >
-      {/* Selection/resize border like Excalidraw */}
+      {/* Node icon badge */}
+      {iconKey && (
+        <div className="absolute -left-3 -top-3 z-10 rounded-md bg-background/80 backdrop-blur border text-muted-foreground p-1 leading-none shadow-sm">
+          {(() => {
+            const def = getIconByKey(iconKey);
+            if (!def) return null;
+            const I = def.Icon;
+            return <I className="h-4 w-4" aria-label={def.label} />;
+          })()}
+        </div>
+      )}
+
       <NodeResizer
         isVisible={props.selected}
         minWidth={120}
@@ -174,23 +191,18 @@ export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
           width: 8,
           height: 8,
           borderRadius: 2,
-          backgroundColor: "#7c3aed", // violet-600
           border: "1px solid #7c3aed",
-        }}
-        lineStyle={{
-          border: "1.5px solid #7c3aed",
-          borderRadius: kind === "ellipse" ? 9999 : 12,
         }}
       />
       {/* Two-way relation indicator for original nodes referenced by virtual nodes */}
       {!isVirtual && virtualLinksToThisNode.length > 0 && (
-        <VirtualLinkIndicator virtualLinksToThisNode={virtualLinksToThisNode} />
+        <VirtualLinkIndicator className="opacity-30 group-hover:opacity-100" virtualLinksToThisNode={virtualLinksToThisNode} />
       )}
       <NodeToolbar
         isVisible={props.selected}
         className="nopan"
       >
-       <NodeColorFormToolbar nodeId={id} fillColor={props.data.fillColor} />
+        <NodeColorFormToolbar nodeId={id} fillColor={props.data.fillColor} />
 
       </NodeToolbar>
 

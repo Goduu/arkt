@@ -3,9 +3,11 @@
 import * as React from "react";
 import type { Node as RFNode } from "reactflow";
 import { X } from "lucide-react";
-import { getTailwindBgClass, getTailwindTextClass, type TailwindBgFamily, type TailwindBgShade } from "@/lib/utils";
+import { type TailwindBgFamily, type TailwindBgShade } from "@/lib/utils";
 import { ColorSelector } from "@/components/diagram/ColorSelectorO";
 import { Button } from "@/components/ui/button";
+import { IconSelector } from "@/components/diagram/IconSelector";
+import { ArchNodeView } from "@/components/diagram/nodes/ArchNodeView";
 
 type Props = {
   selectedNode: RFNode | null;
@@ -15,11 +17,13 @@ type Props = {
 
 export function NodeControls({ selectedNode, onChange, onClose }: Props) {
 
-  const data: any = selectedNode?.data ?? {};
+  const data = (selectedNode?.data ?? {}) as Readonly<{ label?: string; description?: string; fillColor?: string; textColor?: string; borderColor?: string; iconKey?: string; nodeKind?: string; rotation?: number; width?: number; height?: number }>;
   const [label, setLabel] = React.useState<string>(String(data.label ?? ""));
   const [description, setDescription] = React.useState<string>(String(data.description ?? ""));
   const [fillColor, setFillColor] = React.useState<string>(String(data.fillColor ?? "#ffffff"));
   const [textColor, setTextColor] = React.useState<string>(String(data.textColor ?? "#111827"));
+  const [borderColor, setBorderColor] = React.useState<string>(String(data.borderColor ?? "border-slate-300"));
+  const [iconKey, setIconKey] = React.useState<string | undefined>(data.iconKey);
   const [nodeKind, setNodeKind] = React.useState<string>(String(data.nodeKind ?? "rectangle"));
   const [rotation, setRotation] = React.useState<number>(Number(data.rotation ?? 0));
   const [width, setWidth] = React.useState<number>(Number(selectedNode?.width ?? data.width ?? 180));
@@ -34,10 +38,12 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
     setDescription(String(data.description ?? ""));
     setFillColor(String(data.fillColor ?? "#ffffff"));
     setTextColor(String(data.textColor ?? "#111827"));
+    setIconKey(data.iconKey);
     setNodeKind(String(data.nodeKind ?? "rectangle"));
     setRotation(Number(data.rotation ?? 0));
     setWidth(Number(selectedNode?.width ?? data.width ?? 180));
     setHeight(Number(selectedNode?.height ?? data.height ?? 80));
+    setBorderColor(String(data.borderColor ?? "border-slate-300"));
     // Initialize tailwind selector state from fillColor when possible
     const parsed = String(data.fillColor ?? "").match(/^bg-([a-z]+)-(300|500|700)$/);
     if (parsed) {
@@ -50,12 +56,14 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNode?.id]);
 
-  const commit = (partial?: Partial<{ label: string; description: string; fillColor: string; textColor: string; nodeKind: string; rotation: number; width: number; height: number }>) => {
+  const commit = (partial?: Partial<{ label: string; description: string; fillColor: string; textColor: string; borderColor: string; iconKey?: string; nodeKind: string; rotation: number; width: number; height: number }>) => {
     const next = {
       label,
       description,
       fillColor,
       textColor,
+      borderColor,
+      iconKey,
       nodeKind,
       rotation,
       width,
@@ -67,7 +75,7 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
       ...selectedNode,
       data: { ...(selectedNode?.data ?? {}), ...next },
       // style width/height helps React Flow size the component
-      style: { ...(selectedNode as any).style, width: next.width, height: next.height },
+      style: { ...(selectedNode?.style ?? {}), width: next.width, height: next.height },
     } as RFNode;
 
     onChange(updated);
@@ -116,6 +124,37 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
               label="Text color"
               value={textColor}
               onChange={(next) => { setTextColor(next); commit({ textColor: next }); }}
+            />
+          </div>
+        </div>
+        <div>
+          <IconSelector
+            label="Icon"
+            value={iconKey}
+            onChange={(next) => { setIconKey(next); commit({ iconKey: next }); }}
+          />
+        </div>
+        <div>
+          <ColorSelector
+            label="Border color"
+            mode="border"
+            value={borderColor}
+            onChange={(next) => { setBorderColor(next); commit({ borderColor: next }); }}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-muted-foreground mb-1">Preview</label>
+          <div className="border rounded-md p-2 grid place-items-center">
+            <ArchNodeView
+              label={label || "Node"}
+              nodeKind={nodeKind}
+              fillColor={fillColor}
+              textColor={textColor}
+              borderColor={borderColor}
+              iconKey={iconKey}
+              rotation={rotation}
+              width={Math.max(120, Math.min(320, width))}
+              height={Math.max(60, Math.min(240, height))}
             />
           </div>
         </div>

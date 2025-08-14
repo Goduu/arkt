@@ -3,8 +3,8 @@
 import * as React from "react";
 import { type Edge as RFEdge, MarkerType } from "reactflow";
 import { Button } from "@/components/ui/button";
-import { ChevronsLeftRight, ChevronsRight, Minus, Spline } from "lucide-react";
-import { IoAnalyticsOutline, TbLine, TbLineDashed } from "@/lib/Icons";
+// import { ChevronsLeftRight, ChevronsRight, Minus, Spline } from "lucide-react";
+// import { IoAnalyticsOutline, TbLine, TbLineDashed } from "@/lib/Icons";
 import { StrokeTypeSelector } from "./StrokeTypeSelector";
 import { ShapeKind } from "./types";
 import { StrokeWidth } from "./StrokeWidth";
@@ -44,7 +44,17 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
   const [markerDirection, setMarkerDirection] = React.useState<"start" | "end" | "both" | "">("");
 
   React.useEffect(() => {
-    const d = (selectedEdge?.data ?? {}) as any;
+    const d = (selectedEdge?.data ?? {}) as Readonly<{
+      shape?: ShapeKind;
+      strokeColor?: string;
+      strokeWidth?: number;
+      dashed?: boolean;
+      animated?: boolean;
+      label?: string;
+      fontSize?: number;
+      labelColor?: string;
+      labelBackground?: string;
+    }>;
     setShape(d.shape ?? "straight");
     setStrokeColor(d.strokeColor ?? "#4b5563");
     setStrokeWidth(Number(d.strokeWidth ?? 2));
@@ -54,8 +64,8 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
     setFontSize(Number(d.fontSize ?? 12));
     setLabelColor(d.labelColor ?? "#111827");
     setLabelBackground(d.labelBackground ?? "#ffffff");
-    const hasStart = Boolean((selectedEdge as any)?.markerStart);
-    const hasEnd = Boolean((selectedEdge as any)?.markerEnd);
+    const hasStart = Boolean((selectedEdge as RFEdge)?.markerStart);
+    const hasEnd = Boolean((selectedEdge as RFEdge)?.markerEnd);
     setMarkerDirection(hasStart && hasEnd ? "both" : hasStart ? "start" : hasEnd ? "end" : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEdge?.id]);
@@ -110,7 +120,7 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
             }}
           />
         </div>
-        <StrokeType value={[dashed ? "dashed" : false, animated ? "animated" : false].filter(Boolean)}
+        <StrokeType value={[dashed ? "dashed" : null, animated ? "animated" : null].filter((v): v is string => typeof v === "string")}
           onChange={(values: string[]) => {
             setDashed(values.includes("dashed"))
             setAnimated(values.includes("animated"))
