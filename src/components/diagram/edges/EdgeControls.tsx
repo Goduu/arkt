@@ -41,6 +41,7 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
   const [fontSize, setFontSize] = React.useState<number>(Number(data.fontSize ?? 12));
   const [labelColor, setLabelColor] = React.useState<string>(data.labelColor ?? "#111827");
   const [labelBackground, setLabelBackground] = React.useState<string>(data.labelBackground ?? "#ffffff");
+  const [markerDirection, setMarkerDirection] = React.useState<"start" | "end" | "both" | "">("");
 
   React.useEffect(() => {
     const d = (selectedEdge?.data ?? {}) as any;
@@ -53,6 +54,9 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
     setFontSize(Number(d.fontSize ?? 12));
     setLabelColor(d.labelColor ?? "#111827");
     setLabelBackground(d.labelBackground ?? "#ffffff");
+    const hasStart = Boolean((selectedEdge as any)?.markerStart);
+    const hasEnd = Boolean((selectedEdge as any)?.markerEnd);
+    setMarkerDirection(hasStart && hasEnd ? "both" : hasStart ? "start" : hasEnd ? "end" : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEdge?.id]);
 
@@ -78,6 +82,16 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
     onChange(next);
   };
 
+  const commitMarkers = (direction: "start" | "end" | "both" | "") => {
+    if (!selectedEdge) return;
+    const next: RFEdge = {
+      ...selectedEdge,
+      markerStart: direction === "start" || direction === "both" ? { type: MarkerType.ArrowClosed } : undefined,
+      markerEnd: direction === "end" || direction === "both" ? { type: MarkerType.ArrowClosed } : undefined,
+    } as RFEdge;
+    onChange(next);
+  };
+
   if (!selectedEdge) return null;
 
   return (
@@ -87,9 +101,21 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
         <div className="grid grid-cols-3 gap-4">
           <StrokeTypeSelector selectedStrokeType={shape} setStrokeType={setShape} commit={commit} />
           <StrokeWidth commit={commit} selectedWidth={strokeWidth} setStrokeWidth={setStrokeWidth} />
-          <EdgeMarker value="" onChange={() => { }} />
+          <EdgeMarker
+            value={markerDirection}
+            onChange={(dir) => {
+              if (dir === null) return;
+              setMarkerDirection(dir);
+              commitMarkers(dir);
+            }}
+          />
         </div>
-        <StrokeType value={dashed ? "dashed" : ""} onChange={() => { setDashed(!dashed); commit({ dashed: !dashed }) }} />
+        <StrokeType value={[dashed ? "dashed" : false, animated ? "animated" : false].filter(Boolean)}
+          onChange={(values: string[]) => {
+            setDashed(values.includes("dashed"))
+            setAnimated(values.includes("animated"))
+            commit({ dashed: values.includes("dashed"), animated: values.includes("animated") })
+          }} />
 
         <div className="grid grid-cols-2 gap-3">
           <div>

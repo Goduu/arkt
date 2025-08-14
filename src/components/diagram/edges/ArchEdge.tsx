@@ -70,6 +70,11 @@ export function ArchEdge(props: EdgeProps): React.JSX.Element {
         style={{ stroke: strokeColor, strokeWidth, strokeDasharray: dashed ? 6 : undefined }}
         interactionWidth={20}
       />
+      {animated ? (
+        <circle r={Math.max(4, strokeWidth+2)} fill={strokeColor} style={{ pointerEvents: "none" }}>
+          <animateMotion dur="2s" repeatCount="indefinite" path={edgePath} />
+        </circle>
+      ) : null}
 
       <EdgeLabelRenderer>
         <div

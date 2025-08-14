@@ -1,10 +1,9 @@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { TbLineDashed } from "@/lib/Icons";
 import { MoveHorizontal, MoveLeft, MoveRight } from "lucide-react";
 
 type EdgeMarkerProps = {
-    value: string,
-    onChange: (type: string) => void
+    value: "start" | "end" | "both" | "";
+    onChange: (direction: "start" | "end" | "both" | "") => void
 }
 
 export const EdgeMarker = ({ value, onChange }: EdgeMarkerProps) => {
@@ -17,10 +16,13 @@ export const EdgeMarker = ({ value, onChange }: EdgeMarkerProps) => {
                 value={value}
                 onValueChange={onChange}
             >
-                <ToggleGroupItem value="unidirectional" aria-label="unidirectional">
+                <ToggleGroupItem value="end" aria-label="target">
                     <MoveRight className="size-4" />
                 </ToggleGroupItem>
-                <ToggleGroupItem value="bidirectional" aria-label="bidirectional">
+                <ToggleGroupItem value="start" aria-label="source">
+                    <MoveLeft className="size-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="both" aria-label="both">
                     <MoveHorizontal className="size-4" />
                 </ToggleGroupItem>
             </ToggleGroup>

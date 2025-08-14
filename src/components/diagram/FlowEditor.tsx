@@ -10,10 +10,13 @@ import ReactFlow, {
   type Edge as RFEdge,
   type OnConnect,
   type Node as RFNode,
+  type OnConnectStart,
+  type OnConnectEnd,
   useReactFlow as useRFInstance,
   useEdgesState,
   useNodesState,
   MarkerType,
+  ConnectionMode,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useAppStore } from "@/lib/store";
@@ -120,6 +123,7 @@ export function FlowEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedEdge, setSelectedEdge] = React.useState<RFEdge | null>(null);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
+  const connectFromHandle = React.useRef<"source" | "target" | null>(null);
 
   React.useEffect(() => {
     setNodes((currentDomain.nodes ?? []).map((n) => toRFNode(n, isNestedView ? {
@@ -135,7 +139,8 @@ export function FlowEditor() {
         {
           ...connection,
           type: "arch",
-          markerEnd: { type: MarkerType.ArrowClosed },
+          markerStart: connectFromHandle.current === "target" ? { type: MarkerType.ArrowClosed } : undefined,
+          markerEnd: connectFromHandle.current !== "target" ? { type: MarkerType.ArrowClosed } : undefined,
           data: {
             shape: "straight",
             strokeColor: "#4b5563",
@@ -151,7 +156,16 @@ export function FlowEditor() {
         eds
       )
     );
+    connectFromHandle.current = null;
   }, [setEdges]);
+
+  const onConnectStart: OnConnectStart = React.useCallback((_, params) => {
+    connectFromHandle.current = params.handleType ?? null;
+  }, []);
+
+  const onConnectEnd: OnConnectEnd = React.useCallback(() => {
+    // no-op; reset happens in onConnect
+  }, []);
 
   // Refs to persist latest graph state on unmount/navigation
   const nodesRef = React.useRef<RFNode[]>(nodes);
@@ -545,6 +559,9 @@ export function FlowEditor() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onConnectStart={onConnectStart}
+          onConnectEnd={onConnectEnd}
+          connectionMode={ConnectionMode.Loose}
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
