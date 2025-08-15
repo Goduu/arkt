@@ -36,7 +36,9 @@ export function Topbar() {
       // ignore invalid file
     } finally {
       // reset value so selecting the same file again triggers onChange
-      e.currentTarget.value = "";
+      if(e.currentTarget){
+        e.currentTarget.value = "";
+      }
     }
   };
 

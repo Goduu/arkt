@@ -21,7 +21,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useAppStore } from "@/lib/store";
-import type { Diagram, DiagramEdge, DiagramNode, RFArchEdgeData, RFArchNodeData, SubDiagram } from "@/lib/types";
+import type { AppStateSnapshot, Diagram, DiagramEdge, DiagramNode, RFArchEdgeData, RFArchNodeData, SubDiagram } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CornerUpLeft } from "lucide-react";
 import { ArchNode } from "@/components/diagram/nodes/ArchNode";
@@ -522,14 +522,16 @@ export function FlowEditor() {
   };
 
   const onExport = React.useCallback(() => {
-    const blob = new Blob([JSON.stringify({ nodes, edges }, null, 2)], { type: "application/json" });
+    // Export full application snapshot: diagrams + rootId + templates
+    const snapshot: AppStateSnapshot = useAppStore.getState().exportSnapshot();
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `diagram-${diagram?.name ?? "export"}.json`;
+    a.download = `archkt-snapshot-${diagram?.name ?? "export"}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [nodes, edges, diagram?.name]);
+  }, [diagram?.name]);
 
   const nodeTypes = React.useMemo(() => ({ archNode: ArchNode, archTextNode: ArchTextNode }), []);
 
@@ -593,11 +595,37 @@ export function FlowEditor() {
     else if (t === "save") syncToStore();
     else if (t === "export") onExport();
     else if (t === "import") {
-      const payload = (pendingCommand as { type: "import"; data: unknown }).data as { nodes?: RFNode[]; edges?: RFEdge[] } | null;
-      if (payload && Array.isArray(payload.nodes) && Array.isArray(payload.edges)) {
-        setNodes(payload.nodes);
-        setEdges(payload.edges);
-        setTimeout(syncToStore, 0);
+      const payload = (pendingCommand as { type: "import"; data: unknown }).data as unknown;
+      const maybeSnapshot = payload as Partial<AppStateSnapshot> | null;
+      if (maybeSnapshot && typeof maybeSnapshot === "object" && maybeSnapshot !== null && "diagrams" in maybeSnapshot && "rootId" in maybeSnapshot) {
+        useAppStore.getState().importSnapshot(maybeSnapshot as AppStateSnapshot);
+        // After importing, rebuild RF state from the new store
+        setTimeout(() => {
+          const nextStore = useAppStore.getState();
+          const d = nextStore.diagrams[nextStore.currentId];
+          const domain = drillStackRef.current.length === 0 ? { nodes: d.nodes, edges: d.edges } : (() => {
+            // Reuse getNestedDiagram logic with current drill stack
+            const sub = ((): SubDiagram => {
+              let s: SubDiagram = { nodes: d.nodes, edges: d.edges };
+              for (const nid of drillStackRef.current) {
+                const found = (s.nodes ?? []).find((n) => n.id === nid);
+                if (!found) return { nodes: [], edges: [] };
+                s = found.diagram ?? { nodes: [], edges: [] };
+              }
+              return s;
+            })();
+            return sub;
+          })();
+          setNodes((domain.nodes ?? []).map((n) => toRFNode(n)));
+          setEdges((domain.edges ?? []).map(toRFEdge));
+        }, 0);
+      } else {
+        const simple = payload as { nodes?: RFNode[]; edges?: RFEdge[] } | null;
+        if (simple && Array.isArray(simple.nodes) && Array.isArray(simple.edges)) {
+          setNodes(simple.nodes);
+          setEdges(simple.edges);
+          setTimeout(syncToStore, 0);
+        }
       }
     }
     else if (t === "back") onBack();
