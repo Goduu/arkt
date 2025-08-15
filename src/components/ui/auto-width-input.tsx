@@ -78,6 +78,7 @@ export const AutoWidthInput = forwardRef<HTMLInputElement, AutoWidthInputProps>(
                 {...props}
                 value={value}
                 onChange={(e) => { handleChange(e); onChange?.(e); }}
+                onBlur={(e) => props.onBlur?.(e)}
                 className={className}
                 style={{
                     ...style,

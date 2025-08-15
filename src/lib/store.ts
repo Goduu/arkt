@@ -12,7 +12,13 @@ export interface AppStoreState {
   drillStack: string[]; // path of node ids inside the current diagram
   nodeTemplates: Record<string, NodeTemplate>;
   pendingSpawn?: { templateId: string } | null;
-  pendingCommand?: { type: "addText" | "addNode" | "addVirtual" | "openCreateTemplate" } | null;
+  pendingCommand?:
+    | { type: "addText" | "addNode" | "addVirtual" | "openCreateTemplate" }
+    | { type: "save" }
+    | { type: "export" }
+    | { type: "import"; data: unknown }
+    | { type: "back" }
+    | null;
   // transient UI intents
   pendingFocus: null | { diagramId: DiagramId; containerPathIds: string[]; focusNodeIds?: string[]; focusEdgeId?: string };
   // actions

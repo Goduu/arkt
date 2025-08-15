@@ -23,7 +23,7 @@ import "reactflow/dist/style.css";
 import { useAppStore } from "@/lib/store";
 import type { Diagram, DiagramEdge, DiagramNode, RFArchEdgeData, RFArchNodeData, SubDiagram } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Download, Upload, CornerUpLeft } from "lucide-react";
+import { CornerUpLeft } from "lucide-react";
 import { ArchNode } from "@/components/diagram/nodes/ArchNode";
 import { ArchTextNode } from "@/components/diagram/nodes/ArchTextNode";
 import { NodeControls } from "./NodeControls";
@@ -517,7 +517,7 @@ export function FlowEditor() {
     ensureSyncedThen(() => popDrill());
   };
 
-  const onExport = () => {
+  const onExport = React.useCallback(() => {
     const blob = new Blob([JSON.stringify({ nodes, edges }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -525,23 +525,7 @@ export function FlowEditor() {
     a.download = `diagram-${diagram?.name ?? "export"}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const fileRef = React.useRef<HTMLInputElement>(null);
-  const onImportClick = () => fileRef.current?.click();
-  const onImport: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file || !diagram) return;
-    const text = await file.text();
-    try {
-      const parsed = JSON.parse(text) as { nodes: RFNode[]; edges: RFEdge[] };
-      setNodes(parsed.nodes);
-      setEdges(parsed.edges);
-      setTimeout(syncToStore, 0);
-    } catch {
-      // ignore
-    }
-  };
+  }, [nodes, edges, diagram?.name]);
 
   const nodeTypes = React.useMemo(() => ({ archNode: ArchNode, archTextNode: ArchTextNode }), []);
 
@@ -588,28 +572,28 @@ export function FlowEditor() {
   // Handle global pending commands (from sidebar Add menu)
   React.useEffect(() => {
     if (!pendingCommand) return;
-    const t = pendingCommand.type;
+    const t = pendingCommand.type as string;
     if (t === "addText") onAddTextNode();
     else if (t === "addNode") onAddNode();
     else if (t === "addVirtual") setIsVirtualDialogOpen(true);
     else if (t === "openCreateTemplate") setIsCreateDialogOpen(true);
+    else if (t === "save") syncToStore();
+    else if (t === "export") onExport();
+    else if (t === "import") {
+      const payload = (pendingCommand as { type: "import"; data: unknown }).data as { nodes?: RFNode[]; edges?: RFEdge[] } | null;
+      if (payload && Array.isArray(payload.nodes) && Array.isArray(payload.edges)) {
+        setNodes(payload.nodes);
+        setEdges(payload.edges);
+        setTimeout(syncToStore, 0);
+      }
+    }
+    else if (t === "back") onBack();
     setPendingCommand(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingCommand]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-48px)]">
-      <div className="flex items-center gap-2 border-b p-2">
-        {isNestedView && (
-          <Button size="sm" variant="outline" onClick={onBack}><CornerUpLeft className="mr-2 h-4 w-4" /> Back</Button>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={onImport} />
-          <Button size="sm" variant="outline" onClick={onImportClick}><Upload className="mr-2 h-4 w-4" /> Import</Button>
-          <Button size="sm" onClick={onExport}><Download className="mr-2 h-4 w-4" /> Export</Button>
-          <Button size="sm" onClick={syncToStore}>Save</Button>
-        </div>
-      </div>
       {/* Global search below the action buttons */}
       <GlobalSearch ensureSyncedThen={ensureSyncedThen} />
       <div className="flex-1 min-h-0">

@@ -57,7 +57,7 @@ export function ArchTextNode(props: NodeProps<ArchTextNodeData>): React.JSX.Elem
             rf.setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: value } } : n)));
         }
     };
-    console.log('textColor', props.data.textColor)
+
     const fill = props.data.fillColor ?? undefined;
     const textColor = props.data.textColor ?? undefined;
     const iconKey = props.data.iconKey ?? undefined;
@@ -174,10 +174,13 @@ export function ArchTextNode(props: NodeProps<ArchTextNodeData>): React.JSX.Elem
                     onPointerDown={(e) => { if (isEditing) e.stopPropagation(); }}
                     onDoubleClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => {
-                        console.log("onKeyDown", isEditing);
                         e.stopPropagation();
                         if (isEditing) {
-                            if (e.key === "Enter" || e.key === "Escape") {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                (e.target as HTMLInputElement).blur();
+                            } else if (e.key === "Escape") {
+                                e.preventDefault();
                                 setValue(beforeEditValueRef.current);
                                 (e.target as HTMLInputElement).blur();
                             }
@@ -190,11 +193,10 @@ export function ArchTextNode(props: NodeProps<ArchTextNodeData>): React.JSX.Elem
                         setValue(next);
                     }}
                     onBlur={() => {
-                        onBlur();
                         if (isEditing) {
                             setIsEditing(false);
-                            setValue(beforeEditValueRef.current);
                         }
+                        onBlur();
                     }}
                     readOnly={!isEditing}
                     spellCheck={false}
@@ -206,8 +208,8 @@ export function ArchTextNode(props: NodeProps<ArchTextNodeData>): React.JSX.Elem
                     aria-hidden="true"
                 />
             </div>
-            <Handle type="source" position={Position.Right} />
-            <Handle type="target" position={Position.Left} />
+            <Handle className="hidden group-hover:block" type="source" position={Position.Right} />
+            <Handle className="hidden group-hover:block" type="target" position={Position.Left} />
         </div>
     );
 }

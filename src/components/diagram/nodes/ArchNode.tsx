@@ -237,8 +237,8 @@ export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
           readOnly={isVirtual}
         />
       </div>
-      <Handle type="source" position={Position.Right} />
-      <Handle type="target" position={Position.Left} />
+      <Handle className="opacity-30 group-hover:opacity-100" type="source" position={Position.Right} />
+      <Handle className="opacity-30 group-hover:opacity-100" type="target" position={Position.Left} />
     </div>
   );
 }
