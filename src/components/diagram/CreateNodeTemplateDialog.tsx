@@ -8,13 +8,16 @@ import { useAppStore } from "@/lib/store";
 import type { DiagramNode } from "@/lib/types";
 import { ArchNodeView } from "@/components/diagram/nodes/ArchNodeView";
 
+type Mode = "create" | "edit";
 type Props = {
   isOpen: boolean;
   onClose: () => void;
+  mode?: Mode;
+  templateId?: string;
 };
 
-export function CreateNodeTemplateDialog({ isOpen, onClose }: Props): React.JSX.Element | null {
-  const { createNodeTemplate } = useAppStore();
+export function CreateNodeTemplateDialog({ isOpen, onClose, mode = "create", templateId }: Props): React.JSX.Element | null {
+  const { createNodeTemplate, updateNodeTemplate, deleteNodeTemplate, nodeTemplates } = useAppStore();
   const [name, setName] = React.useState<string>("");
   const [nodeKind, setNodeKind] = React.useState<DiagramNode["type"]>("rectangle");
   const [width, setWidth] = React.useState<number>(180);
@@ -24,6 +27,35 @@ export function CreateNodeTemplateDialog({ isOpen, onClose }: Props): React.JSX.
   const [textColor, setTextColor] = React.useState<string>("text-blue-900");
   const [iconKey, setIconKey] = React.useState<string | undefined>(undefined);
   const [borderColor, setBorderColor] = React.useState<string>("border-slate-300");
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    if (mode === "edit" && templateId) {
+      const existing = nodeTemplates[templateId];
+      if (existing) {
+        setName(existing.name);
+        setNodeKind(existing.type);
+        setWidth(typeof existing.width === "number" ? existing.width : 180);
+        setHeight(typeof existing.height === "number" ? existing.height : 80);
+        setRotation(typeof existing.rotation === "number" ? existing.rotation : 0);
+        setFillColor(existing.data.fillColor ?? "bg-blue-500");
+        setTextColor(existing.data.textColor ?? "text-blue-900");
+        setIconKey(existing.data.iconKey);
+        setBorderColor(existing.data.borderColor ?? "border-slate-300");
+      }
+    }
+    if (mode === "create") {
+      setName("");
+      setNodeKind("rectangle");
+      setWidth(180);
+      setHeight(80);
+      setRotation(0);
+      setFillColor("bg-blue-500");
+      setTextColor("text-blue-900");
+      setIconKey(undefined);
+      setBorderColor("border-slate-300");
+    }
+  }, [isOpen, mode, templateId, nodeTemplates]);
 
   const previewStyle = React.useMemo(() => {
     const isTailwindBg = typeof fillColor === "string" && fillColor.startsWith("bg-");
@@ -37,7 +69,7 @@ export function CreateNodeTemplateDialog({ isOpen, onClose }: Props): React.JSX.
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40">
       <div className="w-[720px] max-w-[90vw] rounded-md border bg-background shadow-lg">
         <div className="flex items-center justify-between px-3 py-2 border-b">
-          <div className="text-sm font-medium">Create node</div>
+          <div className="text-sm font-medium">{mode === "edit" ? "Edit template" : "Create node"}</div>
           <Button size="icon" variant="ghost" onClick={onClose}>×</Button>
         </div>
         <div className="grid grid-cols-2 gap-4 p-4 text-sm">
@@ -91,19 +123,58 @@ export function CreateNodeTemplateDialog({ isOpen, onClose }: Props): React.JSX.
                 height={height}
               />
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-              <Button size="sm" onClick={() => {
-                const id = createNodeTemplate({
-                  name: name || "Node",
-                  type: nodeKind,
-                  width,
-                  height,
-                  rotation,
-                  data: { fillColor, textColor, borderColor, iconKey },
-                });
-                if (id) onClose();
-              }}>Create</Button>
+            <div className="flex justify-between gap-2">
+              {mode === "edit" ? (
+                <div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if (!templateId) return;
+                      // eslint-disable-next-line no-alert
+                      const ok = window.confirm("Delete this template? This cannot be undone.");
+                      if (!ok) return;
+                      deleteNodeTemplate(templateId);
+                      onClose();
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              ) : <div />}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+                {mode === "edit" ? (
+                  <Button size="sm" onClick={() => {
+                    if (!templateId) return;
+                    const existing = nodeTemplates[templateId];
+                    updateNodeTemplate({
+                      id: templateId,
+                      name: name || "Node",
+                      type: nodeKind,
+                      width,
+                      height,
+                      rotation,
+                      data: { fillColor, textColor, borderColor, iconKey },
+                      createdAt: existing?.createdAt ?? Date.now(),
+                      updatedAt: Date.now(),
+                    });
+                    onClose();
+                  }}>Save</Button>
+                ) : (
+                  <Button size="sm" onClick={() => {
+                    const id = createNodeTemplate({
+                      name: name || "Node",
+                      type: nodeKind,
+                      width,
+                      height,
+                      rotation,
+                      data: { fillColor, textColor, borderColor, iconKey },
+                    });
+                    if (id) onClose();
+                  }}>Create</Button>
+                )}
+              </div>
             </div>
           </div>
         </div>

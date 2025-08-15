@@ -67,7 +67,7 @@ export function AppSidebar() {
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
                             <SidebarMenuItem>
-                                <SidebarMenuButton tooltip="Templates">
+                                <SidebarMenuButton tooltip="Templates" onClick={() => setPendingCommand({ type: "openTemplates" })}>
                                     <FileText />
                                     <span>Templates</span>
                                 </SidebarMenuButton>

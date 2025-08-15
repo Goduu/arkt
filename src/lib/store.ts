@@ -13,7 +13,7 @@ export interface AppStoreState {
   nodeTemplates: Record<string, NodeTemplate>;
   pendingSpawn?: { templateId: string } | null;
   pendingCommand?:
-    | { type: "addText" | "addNode" | "addVirtual" | "openCreateTemplate" }
+    | { type: "addText" | "addNode" | "addVirtual" | "openCreateTemplate" | "openTemplates" | "refreshTemplates" }
     | { type: "save" }
     | { type: "export" }
     | { type: "import"; data: unknown }
@@ -131,7 +131,37 @@ export const useAppStore = create<AppStoreState>()(
       const exists = state.nodeTemplates[tpl.id];
       if (!exists) return {} as AppStoreState;
       const next: NodeTemplate = { ...tpl, updatedAt: now() };
-      return { nodeTemplates: { ...state.nodeTemplates, [tpl.id]: next } };
+      // Propagate to nodes that were created from this template (deep across nested sub-diagrams)
+      const applyTemplateToNode = (node: DiagramNode): DiagramNode => {
+        const fromTemplate = node.data?.templateId === tpl.id;
+        const baseUpdated: DiagramNode = fromTemplate
+          ? {
+              ...node,
+              type: next.type,
+              width: typeof next.width === "number" ? next.width : node.width,
+              height: typeof next.height === "number" ? next.height : node.height,
+              rotation: typeof next.rotation === "number" ? next.rotation : node.rotation,
+              data: {
+                ...node.data,
+                fillColor: next.data.fillColor,
+                textColor: next.data.textColor,
+                borderColor: next.data.borderColor,
+                iconKey: next.data.iconKey,
+              },
+            }
+          : node;
+        const hasSub = baseUpdated.diagram && Array.isArray(baseUpdated.diagram.nodes) && baseUpdated.diagram.nodes.length > 0;
+        if (!hasSub) return baseUpdated;
+        const updatedChildren = baseUpdated.diagram.nodes.map(applyTemplateToNode);
+        return { ...baseUpdated, diagram: { nodes: updatedChildren, edges: baseUpdated.diagram.edges ?? [] } };
+      };
+
+      const updatedDiagrams: Record<string, Diagram> = {};
+      for (const [dId, d] of Object.entries(state.diagrams)) {
+        const updatedNodes = (d.nodes ?? []).map(applyTemplateToNode);
+        updatedDiagrams[dId] = { ...d, nodes: updatedNodes, updatedAt: now() };
+      }
+      return { nodeTemplates: { ...state.nodeTemplates, [tpl.id]: next }, diagrams: updatedDiagrams, pendingCommand: { type: "refreshTemplates" } };
     });
   },
 

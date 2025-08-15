@@ -20,6 +20,8 @@ export interface DiagramNodeDataBase {
   // If present, this node is a virtual reference to another node id
   // Virtual nodes mirror the target node's label and cannot be edited
   virtualOf?: string;
+  // If present, this node originated from a template; used to apply template updates
+  templateId?: string;
 }
 
 export interface DiagramNode {
@@ -128,5 +130,6 @@ export type RFArchNodeData = {
   width?: number;
   height?: number;
   virtualOf?: string;
+  templateId?: string;
   onLabelCommit?: (next: string) => void;
 };

@@ -32,6 +32,7 @@ import { nanoid } from "nanoid";
 import { FocusIntentHandler } from "./FocusIntentHandler";
 import { ArchEdge } from "@/components/diagram/edges/ArchEdge";
 import { CreateNodeTemplateDialog } from "./CreateNodeTemplateDialog";
+import { TemplatesManagerDialog } from "./TemplatesManagerDialog";
 import { getIconByKey } from "@/lib/iconRegistry";
 import { cn } from "@/lib/utils";
 import { GlobalSearch } from "@/components/GlobalSearch";
@@ -50,6 +51,7 @@ function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: st
     width: n.width,
     height: n.height,
     virtualOf: n.data?.virtualOf,
+    templateId: n.data?.templateId,
   };
   if (opts?.onLabelCommit) {
     baseData.onLabelCommit = (next: string) => opts.onLabelCommit && opts.onLabelCommit(n.id, next);
@@ -171,18 +173,19 @@ export function FlowEditor() {
           textColor: tpl.data.textColor,
           borderColor: tpl.data.borderColor,
           iconKey: tpl.data.iconKey,
+          templateId: pendingSpawn.templateId,
         },
         diagram: { nodes: [], edges: [] },
       });
       setNodes((prev) => [
         ...prev,
-        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey }, diagram: { nodes: [], edges: [] } }),
+        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey, templateId: pendingSpawn.templateId }, diagram: { nodes: [], edges: [] } }),
       ]);
     } else {
       const id = nanoid();
       setNodes((prev) => [
         ...prev,
-        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey }, diagram: { nodes: [], edges: [] } }),
+        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey, templateId: pendingSpawn.templateId }, diagram: { nodes: [], edges: [] } }),
       ]);
       // persistence handled by autosave
     }
@@ -270,6 +273,7 @@ export function FlowEditor() {
           borderColor: (n.data as RFArchNodeData)?.borderColor,
           iconKey: (n.data as RFArchNodeData)?.iconKey,
           virtualOf: (n.data as RFArchNodeData)?.virtualOf,
+          templateId: (n.data as RFArchNodeData)?.templateId,
         },
         width: resolvedWidth,
         height: resolvedHeight,
@@ -568,6 +572,7 @@ export function FlowEditor() {
   // handleGoToSearchItem now lives inside GlobalSearch
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState<boolean>(false);
+  const [isTemplatesManagerOpen, setIsTemplatesManagerOpen] = React.useState<boolean>(false);
 
   // Handle global pending commands (from sidebar Add menu)
   React.useEffect(() => {
@@ -577,6 +582,14 @@ export function FlowEditor() {
     else if (t === "addNode") onAddNode();
     else if (t === "addVirtual") setIsVirtualDialogOpen(true);
     else if (t === "openCreateTemplate") setIsCreateDialogOpen(true);
+    else if (t === "openTemplates") setIsTemplatesManagerOpen(true);
+    else if (t === "refreshTemplates") {
+      // Rebuild RF state from latest store for current domain
+      setNodes((currentDomain.nodes ?? []).map((n) => toRFNode(n, isNestedView ? {
+        onLabelCommit: (id, next) => setNodes((prev) => prev.map((rn) => (rn.id === id ? { ...rn, data: { ...rn.data, label: next } } : rn))),
+      } : undefined)));
+      setEdges((currentDomain.edges ?? []).map(toRFEdge));
+    }
     else if (t === "save") syncToStore();
     else if (t === "export") onExport();
     else if (t === "import") {
@@ -625,6 +638,7 @@ export function FlowEditor() {
           <Controls />
         </ReactFlow>
         <CreateNodeTemplateDialog isOpen={isCreateDialogOpen} onClose={() => setIsCreateDialogOpen(false)} />
+        <TemplatesManagerDialog isOpen={isTemplatesManagerOpen} onClose={() => setIsTemplatesManagerOpen(false)} />
         <NodeControls
           selectedNode={(() => {
             const n = selectedNodeId ? nodes.find((nn) => nn.id === selectedNodeId) ?? null : null;
