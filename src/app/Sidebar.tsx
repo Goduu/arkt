@@ -95,6 +95,18 @@ export function AppSidebar() {
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
                             <SidebarMenuItem>
+                                <SidebarMenuButton tooltip="Add Square" onClick={() => setPendingCommand({ type: "addSquare" })}>
+                                    <Layers />
+                                    <span>Add square</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton tooltip="Add Line" onClick={() => setPendingCommand({ type: "addLine" })}>
+                                    <Layers />
+                                    <span>Add line</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
                                 <SidebarMenuButton tooltip="Add Virtual Node" onClick={() => setPendingCommand({ type: "addVirtual" })}>
                                     <LinkIcon />
                                     <span>Add virtual node</span>

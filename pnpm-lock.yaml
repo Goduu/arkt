@@ -41,12 +41,24 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.85.0
         version: 5.85.0(react@19.1.0)
+      '@types/d3-drag':
+        specifier: ^3.0.7
+        version: 3.0.7
+      '@types/d3-selection':
+        specifier: ^3.0.11
+        version: 3.0.11
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      d3-drag:
+        specifier: ^3.0.0
+        version: 3.0.0
+      d3-selection:
+        specifier: ^3.0.0
+        version: 3.0.0
       lucide-react:
         specifier: ^0.539.0
         version: 0.539.0(react@19.1.0)

@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { nanoid } from "nanoid";
-import type { AppStateSnapshot, Diagram, DiagramEdge, DiagramId, DiagramMeta, DiagramNode, NodeTemplate } from "./types";
+import type { AppStateSnapshot, Diagram, DiagramEdge, DiagramId, DiagramMeta, DiagramNode, NodeTemplate, DiagramPolyline } from "./types";
 
 export interface AppStoreState {
   diagrams: Record<DiagramId, Diagram>;
@@ -13,7 +13,7 @@ export interface AppStoreState {
   nodeTemplates: Record<string, NodeTemplate>;
   pendingSpawn?: { templateId: string } | null;
   pendingCommand?:
-    | { type: "addText" | "addNode" | "addVirtual" | "openCreateTemplate" | "openTemplates" | "refreshTemplates" }
+    | { type: "addText" | "addNode" | "addSquare" | "addLine" | "addVirtual" | "openCreateTemplate" | "openTemplates" | "refreshTemplates" }
     | { type: "save" }
     | { type: "export" }
     | { type: "import"; data: unknown }
@@ -42,7 +42,10 @@ export interface AppStoreState {
   addEdge: (diagramId: DiagramId, edge: Omit<DiagramEdge, "id">) => string;
   updateEdge: (diagramId: DiagramId, edge: DiagramEdge) => void;
   removeEdge: (diagramId: DiagramId, edgeId: string) => void;
-  setNodesEdges: (diagramId: DiagramId, nodes: DiagramNode[], edges: DiagramEdge[]) => void;
+  addLine: (diagramId: DiagramId, line: Omit<DiagramPolyline, "id">) => string;
+  updateLine: (diagramId: DiagramId, line: DiagramPolyline) => void;
+  removeLine: (diagramId: DiagramId, lineId: string) => void;
+  setNodesEdges: (diagramId: DiagramId, nodes: DiagramNode[], edges: DiagramEdge[], lines?: DiagramPolyline[]) => void;
   exportSnapshot: () => AppStateSnapshot;
   importSnapshot: (snapshot: AppStateSnapshot) => void;
 }
@@ -61,7 +64,7 @@ function createDiagramMeta(name: string, parentId?: DiagramId): DiagramMeta {
 
 function createEmptyDiagram(name: string, parentId?: DiagramId): Diagram {
   const meta = createDiagramMeta(name, parentId);
-  return { ...meta, nodes: [], edges: [] };
+  return { ...meta, nodes: [], edges: [], lines: [] };
 }
 
 const initialRoot = createEmptyDiagram("System");
@@ -153,7 +156,7 @@ export const useAppStore = create<AppStoreState>()(
         const hasSub = baseUpdated.diagram && Array.isArray(baseUpdated.diagram.nodes) && baseUpdated.diagram.nodes.length > 0;
         if (!hasSub) return baseUpdated;
         const updatedChildren = baseUpdated.diagram.nodes.map(applyTemplateToNode);
-        return { ...baseUpdated, diagram: { nodes: updatedChildren, edges: baseUpdated.diagram.edges ?? [] } };
+        return { ...baseUpdated, diagram: { nodes: updatedChildren, edges: baseUpdated.diagram.edges ?? [], lines: baseUpdated.diagram.lines ?? [] } };
       };
 
       const updatedDiagrams: Record<string, Diagram> = {};
@@ -186,7 +189,7 @@ export const useAppStore = create<AppStoreState>()(
         ...d,
         nodes: [
           ...d.nodes,
-          { ...node, id, diagram: node.diagram ?? { nodes: [], edges: [] } },
+          { ...node, id, diagram: node.diagram ?? { nodes: [], edges: [], lines: [] } },
         ],
         updatedAt: now(),
       };
@@ -263,16 +266,57 @@ export const useAppStore = create<AppStoreState>()(
     });
   },
 
-      setNodesEdges: (diagramId, nodes, edges) => {
+  addLine: (diagramId: DiagramId, line: Omit<DiagramPolyline, "id">) => {
+    const id = nanoid();
+    set((state) => {
+      const d = state.diagrams[diagramId];
+      if (!d) return {} as AppStoreState;
+      const updated: Diagram = {
+        ...d,
+        lines: [...(d.lines ?? []), { ...line, id }],
+        updatedAt: now(),
+      };
+      return { diagrams: { ...state.diagrams, [diagramId]: updated } };
+    });
+    return id;
+  },
+
+  updateLine: (diagramId: DiagramId, line: DiagramPolyline) => {
+    set((state) => {
+      const d = state.diagrams[diagramId];
+      if (!d) return {} as AppStoreState;
+      const updated: Diagram = {
+        ...d,
+        lines: (d.lines ?? []).map((l) => (l.id === line.id ? line : l)),
+        updatedAt: now(),
+      };
+      return { diagrams: { ...state.diagrams, [diagramId]: updated } };
+    });
+  },
+
+  removeLine: (diagramId: DiagramId, lineId: string) => {
+    set((state) => {
+      const d = state.diagrams[diagramId];
+      if (!d) return {} as AppStoreState;
+      const updated: Diagram = {
+        ...d,
+        lines: (d.lines ?? []).filter((l) => l.id !== lineId),
+        updatedAt: now(),
+      };
+      return { diagrams: { ...state.diagrams, [diagramId]: updated } };
+    });
+  },
+
+      setNodesEdges: (diagramId, nodes, edges, lines) => {
         set((state) => {
           const d = state.diagrams[diagramId];
           if (!d) return {} as AppStoreState;
           // Ensure every node has a diagram structure
           const normalizedNodes: DiagramNode[] = nodes.map((n) => ({
             ...n,
-            diagram: n.diagram ?? { nodes: [], edges: [] },
+            diagram: n.diagram ?? { nodes: [], edges: [], lines: [] },
           }));
-          const updated: Diagram = { ...d, nodes: normalizedNodes, edges, updatedAt: now() };
+          const updated: Diagram = { ...d, nodes: normalizedNodes, edges, lines: lines ?? (d.lines ?? []), updatedAt: now() };
           return { diagrams: { ...state.diagrams, [diagramId]: updated } };
         });
       },
@@ -288,8 +332,19 @@ export const useAppStore = create<AppStoreState>()(
       },
 
       importSnapshot: (snapshot: AppStateSnapshot) => {
+        const normalized: Record<string, Diagram> = Object.fromEntries(
+          Object.entries(snapshot.diagrams).map(([id, d]) => [
+            id,
+            {
+              ...d,
+              nodes: (d.nodes ?? []).map((n) => ({ ...n, diagram: n.diagram ?? { nodes: [], edges: [], lines: [] } })),
+              edges: d.edges ?? [],
+              lines: (d as any).lines ?? [],
+            },
+          ])
+        );
         set({
-          diagrams: snapshot.diagrams,
+          diagrams: normalized,
           rootId: snapshot.rootId,
           currentId: snapshot.rootId,
           nodeTemplates: snapshot.nodeTemplates ?? {},

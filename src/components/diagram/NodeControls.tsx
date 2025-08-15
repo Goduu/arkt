@@ -66,8 +66,8 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
       iconKey,
       nodeKind,
       rotation,
-      width,
-      height,
+      width: nodeKind === "square" ? Math.max(1, Math.min(2000, width)) : width,
+      height: nodeKind === "square" ? Math.max(1, Math.min(2000, width)) : (nodeKind === "line" ? Math.max(1, Math.min(2000, height)) : height),
       ...(partial ?? {}),
     };
 
@@ -163,10 +163,14 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
             <label className="block text-xs text-muted-foreground mb-1">Width</label>
             <input
               type="number"
-              min={40}
+              min={nodeKind === "line" ? 20 : 40}
               className="w-full rounded border px-2 py-1 bg-transparent"
               value={width}
-              onChange={(e) => setWidth(Number(e.target.value))}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setWidth(val);
+                if (nodeKind === "square") setHeight(val);
+              }}
               onBlur={() => commit()}
             />
           </div>
@@ -174,10 +178,14 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
             <label className="block text-xs text-muted-foreground mb-1">Height</label>
             <input
               type="number"
-              min={24}
+              min={nodeKind === "line" ? 2 : 24}
               className="w-full rounded border px-2 py-1 bg-transparent"
               value={height}
-              onChange={(e) => setHeight(Number(e.target.value))}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setHeight(val);
+                if (nodeKind === "square") setWidth(val);
+              }}
               onBlur={() => commit()}
             />
           </div>
@@ -193,6 +201,8 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
               <option value="rectangle">Rectangle</option>
               <option value="ellipse">Ellipse</option>
               <option value="text">Text</option>
+              <option value="square">Square</option>
+              <option value="line">Line</option>
               <option value="container">Container</option>
             </select>
           </div>

@@ -21,11 +21,13 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useAppStore } from "@/lib/store";
-import type { AppStateSnapshot, Diagram, DiagramEdge, DiagramNode, RFArchEdgeData, RFArchNodeData, SubDiagram } from "@/lib/types";
+import type { AppStateSnapshot, Diagram, DiagramEdge, DiagramNode, RFArchEdgeData, RFArchNodeData, SubDiagram, DiagramPolyline, DiagramPolylinePoint } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { CornerUpLeft } from "lucide-react";
 import { ArchNode } from "@/components/diagram/nodes/ArchNode";
 import { ArchTextNode } from "@/components/diagram/nodes/ArchTextNode";
+import { ArchSquareNode } from "@/components/diagram/nodes/ArchSquareNode";
+import { ArchLineNode } from "@/components/diagram/nodes/ArchLineNode";
+import { ArchPolylineNode } from "@/components/diagram/nodes/ArchPolylineNode";
 import { NodeControls } from "./NodeControls";
 import { EdgeControls } from "@/components/diagram/edges/EdgeControls";
 import { nanoid } from "nanoid";
@@ -57,11 +59,13 @@ function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: st
     baseData.onLabelCommit = (next: string) => opts.onLabelCommit && opts.onLabelCommit(n.id, next);
   }
   const isText = n.type === "text";
+  const isSquare = n.type === "square";
+  const isLine = n.type === "line";
   return {
     id: n.id,
     position: n.position,
     data: baseData,
-    type: isText ? "archTextNode" : "archNode",
+    type: isText ? "archTextNode" : isSquare ? "archSquareNode" : isLine ? "archLineNode" : "archNode",
     style: isText ? {} : { width: n.width ?? 180, height: n.height ?? 80 },
   } satisfies RFNode;
 }
@@ -100,17 +104,17 @@ export function FlowEditor() {
   const isNestedView = drillStack.length > 0;
 
   const getNestedDiagram = React.useCallback((sourceNodes: DiagramNode[], stack: string[]): SubDiagram => {
-    if (stack.length === 0) return { nodes: sourceNodes, edges: diagram?.edges ?? [] };
+    if (stack.length === 0) return { nodes: sourceNodes, edges: diagram?.edges ?? [], lines: diagram?.lines ?? [] };
     const [head, ...rest] = stack;
     const found = sourceNodes.find((n) => n.id === head);
-    if (!found) return { nodes: [], edges: [] };
-    if (rest.length === 0) return found.diagram ?? { nodes: [], edges: [] };
+    if (!found) return { nodes: [], edges: [], lines: [] };
+    if (rest.length === 0) return found.diagram ?? { nodes: [], edges: [], lines: [] };
     return getNestedDiagram(found.diagram?.nodes ?? [], rest);
   }, [diagram?.edges]);
 
   const currentDomain = React.useMemo(() => {
-    if (!diagram) return { nodes: [] as DiagramNode[], edges: [] as DiagramEdge[] };
-    if (drillStack.length === 0) return { nodes: diagram.nodes, edges: diagram.edges };
+    if (!diagram) return { nodes: [] as DiagramNode[], edges: [] as DiagramEdge[], lines: [] as DiagramPolyline[] };
+    if (drillStack.length === 0) return { nodes: diagram.nodes, edges: diagram.edges, lines: diagram.lines ?? [] };
     return getNestedDiagram(diagram.nodes, drillStack);
   }, [diagram, drillStack, getNestedDiagram]);
 
@@ -129,6 +133,12 @@ export function FlowEditor() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedEdge, setSelectedEdge] = React.useState<RFEdge | null>(null);
+  const [isDrawingLine, setIsDrawingLine] = React.useState<boolean>(false);
+  const [draftPoints, setDraftPoints] = React.useState<DiagramPolylinePoint[]>([]);
+  const [viewport, setViewport] = React.useState<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 });
+  const viewportRef = React.useRef<{ x: number; y: number; zoom: number }>(viewport);
+  React.useEffect(() => { viewportRef.current = viewport; }, [viewport]);
+  const viewportRafRef = React.useRef<number | null>(null);
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const connectFromHandle = React.useRef<"source" | "target" | null>(null);
   const getSpawnPosition = React.useCallback((nodeWidth: number, nodeHeight: number) => {
@@ -175,17 +185,17 @@ export function FlowEditor() {
           iconKey: tpl.data.iconKey,
           templateId: pendingSpawn.templateId,
         },
-        diagram: { nodes: [], edges: [] },
+        diagram: { nodes: [], edges: [], lines: [] },
       });
       setNodes((prev) => [
         ...prev,
-        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey, templateId: pendingSpawn.templateId }, diagram: { nodes: [], edges: [] } }),
+        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey, templateId: pendingSpawn.templateId }, diagram: { nodes: [], edges: [], lines: [] } }),
       ]);
     } else {
       const id = nanoid();
       setNodes((prev) => [
         ...prev,
-        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey, templateId: pendingSpawn.templateId }, diagram: { nodes: [], edges: [] } }),
+        toRFNode({ id, type: tpl.type, position, width: nodeWidth, height: nodeHeight, rotation: tpl.rotation ?? 0, data: { label: tpl.data.label ?? "Node", fillColor: tpl.data.fillColor, textColor: tpl.data.textColor, borderColor: tpl.data.borderColor, iconKey: tpl.data.iconKey, templateId: pendingSpawn.templateId }, diagram: { nodes: [], edges: [], lines: [] } }),
       ]);
       // persistence handled by autosave
     }
@@ -278,7 +288,7 @@ export function FlowEditor() {
         width: resolvedWidth,
         height: resolvedHeight,
         rotation: (n.data as RFArchNodeData)?.rotation ?? 0,
-        diagram: baseNodes.find((bn) => bn.id === n.id)?.diagram ?? { nodes: [], edges: [] },
+        diagram: baseNodes.find((bn) => bn.id === n.id)?.diagram ?? { nodes: [], edges: [], lines: [] },
       } satisfies DiagramNode);
     });
 
@@ -310,7 +320,15 @@ export function FlowEditor() {
           animated: Boolean(d.animated),
         };
       });
-      setNodesEdges(id, asDomainNodes, asDomainEdges);
+      const asDomainLines: DiagramPolyline[] = nodesRef.current
+        .filter((n) => n.type === 'archPolylineNode')
+        .map((n) => {
+          const d = (n.data ?? {}) as unknown as { lineId?: string; points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean };
+          const origin = n.position;
+          const absPoints = (d.points ?? []).map((p) => ({ x: p.x + origin.x, y: p.y + origin.y }));
+          return { id: String(d.lineId ?? n.id.replace(/^poly:/, '')), points: absPoints, strokeColor: d.strokeColor, strokeWidth: d.strokeWidth, dashed: d.dashed } as DiagramPolyline;
+        });
+      setNodesEdges(id, asDomainNodes, asDomainEdges, asDomainLines);
       return;
     }
 
@@ -319,16 +337,16 @@ export function FlowEditor() {
       const [head, ...rest] = path;
       return nodes.map((node) =>
         node.id === head
-          ? { ...node, diagram: rest.length === 0 ? replacement : { nodes: replaceNested(node.diagram?.nodes ?? [], rest, replacement), edges: node.diagram?.edges ?? [] } }
+          ? { ...node, diagram: rest.length === 0 ? replacement : { nodes: replaceNested(node.diagram?.nodes ?? [], rest, replacement), edges: node.diagram?.edges ?? [], lines: node.diagram?.lines ?? [] } }
           : node
       );
     };
     const baseNested = (() => {
-      let sub: SubDiagram = { nodes: existing.nodes as DiagramNode[], edges: existing.edges as DiagramEdge[] };
+      let sub: SubDiagram = { nodes: existing.nodes as DiagramNode[], edges: existing.edges as DiagramEdge[], lines: existing.lines ?? [] };
       for (const nid of stack) {
         const found = (sub.nodes ?? []).find((n) => n.id === nid);
-        if (!found) return { nodes: [], edges: [] } as SubDiagram;
-        sub = found.diagram ?? { nodes: [], edges: [] };
+        if (!found) return { nodes: [], edges: [], lines: [] } as SubDiagram;
+        sub = found.diagram ?? { nodes: [], edges: [], lines: [] };
       }
       return sub;
     })();
@@ -358,8 +376,16 @@ export function FlowEditor() {
         animated: Boolean(d.animated),
       };
     });
-    const updatedTop = replaceNested(existing.nodes, stack, { nodes: updatedNestedNodes, edges: updatedNestedEdges });
-    setNodesEdges(id, updatedTop, existing.edges);
+    const updatedNestedLines: DiagramPolyline[] = nodesRef.current
+      .filter((n) => n.type === 'archPolylineNode')
+      .map((n) => {
+        const d = (n.data ?? {}) as unknown as { lineId?: string; points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean };
+        const origin = n.position;
+        const absPoints = (d.points ?? []).map((p) => ({ x: p.x + origin.x, y: p.y + origin.y }));
+        return { id: String(d.lineId ?? n.id.replace(/^poly:/, '')), points: absPoints, strokeColor: d.strokeColor, strokeWidth: d.strokeWidth, dashed: d.dashed } as DiagramPolyline;
+      });
+    const updatedTop = replaceNested(existing.nodes, stack, { nodes: updatedNestedNodes, edges: updatedNestedEdges, lines: updatedNestedLines });
+    setNodesEdges(id, updatedTop, existing.edges, existing.lines);
   }, [setNodesEdges]);
 
   // Debounced autosave when nodes/edges change
@@ -394,15 +420,41 @@ export function FlowEditor() {
         width: nodeWidth,
         height: nodeHeight,
         data: { label: "Node" },
-        diagram: { nodes: [], edges: [] },
+        diagram: { nodes: [], edges: [], lines: [] },
       });
-      setNodes((prev) => [...prev, toRFNode({ id, type: "rectangle", position, data: { label: "Node" }, width: nodeWidth, height: nodeHeight, diagram: { nodes: [], edges: [] } })]);
+      setNodes((prev) => [...prev, toRFNode({ id, type: "rectangle", position, data: { label: "Node" }, width: nodeWidth, height: nodeHeight, diagram: { nodes: [], edges: [], lines: [] } })]);
       return;
     }
     const id = nanoid();
-    setNodes((prev) => [...prev, toRFNode({ id, type: "rectangle", position, data: { label: "Node" }, width: nodeWidth, height: nodeHeight, diagram: { nodes: [], edges: [] } })]);
+    setNodes((prev) => [...prev, toRFNode({ id, type: "rectangle", position, data: { label: "Node" }, width: nodeWidth, height: nodeHeight, diagram: { nodes: [], edges: [], lines: [] } })]);
     // persistence handled by autosave
   };
+
+  const onAddSquareNode = () => {
+    if (!diagram) return;
+    const size = 140;
+    const position = getSpawnPosition(size, size);
+    if (drillStack.length === 0) {
+      const id = addNode(diagram.id, {
+        type: "square",
+        position,
+        width: size,
+        height: size,
+        data: { label: "Square" },
+        diagram: { nodes: [], edges: [], lines: [] },
+      });
+      setNodes((prev) => [...prev, toRFNode({ id, type: "square", position, data: { label: "Square" }, width: size, height: size, diagram: { nodes: [], edges: [], lines: [] } })]);
+      return;
+    }
+    const id = nanoid();
+    setNodes((prev) => [...prev, toRFNode({ id, type: "square", position, data: { label: "Square" }, width: size, height: size, diagram: { nodes: [], edges: [], lines: [] } })]);
+    // persistence handled by autosave
+  };
+
+  const beginLineDrawing = React.useCallback(() => {
+    setIsDrawingLine(true);
+    setDraftPoints([]);
+  }, []);
 
   const onAddTextNode = () => {
     if (!diagram) return;
@@ -412,18 +464,18 @@ export function FlowEditor() {
         type: "text",
         position,
         data: { label: "Text" },
-        diagram: { nodes: [], edges: [] },
+        diagram: { nodes: [], edges: [], lines: [] },
       });
       setNodes((prev) => [
         ...prev,
-        toRFNode({ id, type: "text", position, data: { label: "Text" }, diagram: { nodes: [], edges: [] } }),
+        toRFNode({ id, type: "text", position, data: { label: "Text" }, diagram: { nodes: [], edges: [], lines: [] } }),
       ]);
       return;
     }
     const id = nanoid();
     setNodes((prev) => [
       ...prev,
-      toRFNode({ id, type: "text", position, data: { label: "Text" }, diagram: { nodes: [], edges: [] } }),
+      toRFNode({ id, type: "text", position, data: { label: "Text" }, diagram: { nodes: [], edges: [], lines: [] } }),
     ]);
     // persistence handled by autosave
   };
@@ -481,17 +533,17 @@ export function FlowEditor() {
         width: 180,
         height: 80,
         data: { label: virtualSelection.label, virtualOf: virtualSelection.nodeId },
-        diagram: { nodes: [], edges: [] },
+        diagram: { nodes: [], edges: [], lines: [] },
       });
       setNodes((prev) => [
         ...prev,
-        toRFNode({ id, type: "virtual", position, width: 180, height: 80, data: { label: virtualSelection.label, virtualOf: virtualSelection.nodeId }, diagram: { nodes: [], edges: [] } }),
+        toRFNode({ id, type: "virtual", position, width: 180, height: 80, data: { label: virtualSelection.label, virtualOf: virtualSelection.nodeId }, diagram: { nodes: [], edges: [], lines: [] } }),
       ]);
     } else {
       const id = nanoid();
       setNodes((prev) => [
         ...prev,
-        toRFNode({ id, type: "virtual", position, width: 180, height: 80, data: { label: virtualSelection.label, virtualOf: virtualSelection.nodeId }, diagram: { nodes: [], edges: [] } }),
+        toRFNode({ id, type: "virtual", position, width: 180, height: 80, data: { label: virtualSelection.label, virtualOf: virtualSelection.nodeId }, diagram: { nodes: [], edges: [], lines: [] } }),
       ]);
       // persistence handled by autosave
     }
@@ -533,7 +585,7 @@ export function FlowEditor() {
     URL.revokeObjectURL(url);
   }, [diagram?.name]);
 
-  const nodeTypes = React.useMemo(() => ({ archNode: ArchNode, archTextNode: ArchTextNode }), []);
+  const nodeTypes = React.useMemo(() => ({ archNode: ArchNode, archTextNode: ArchTextNode, archSquareNode: ArchSquareNode, archLineNode: ArchLineNode, archPolylineNode: ArchPolylineNode }), []);
 
   const ensureSyncedThen = React.useCallback((after: () => void) => {
     // Persist current visual state to store before navigation
@@ -582,6 +634,8 @@ export function FlowEditor() {
     const t = pendingCommand.type as string;
     if (t === "addText") onAddTextNode();
     else if (t === "addNode") onAddNode();
+    else if (t === "addSquare") onAddSquareNode();
+    else if (t === "addLine") beginLineDrawing();
     else if (t === "addVirtual") setIsVirtualDialogOpen(true);
     else if (t === "openCreateTemplate") setIsCreateDialogOpen(true);
     else if (t === "openTemplates") setIsTemplatesManagerOpen(true);
@@ -603,14 +657,14 @@ export function FlowEditor() {
         setTimeout(() => {
           const nextStore = useAppStore.getState();
           const d = nextStore.diagrams[nextStore.currentId];
-          const domain = drillStackRef.current.length === 0 ? { nodes: d.nodes, edges: d.edges } : (() => {
+          const domain = drillStackRef.current.length === 0 ? { nodes: d.nodes, edges: d.edges, lines: d.lines ?? [] } : (() => {
             // Reuse getNestedDiagram logic with current drill stack
             const sub = ((): SubDiagram => {
-              let s: SubDiagram = { nodes: d.nodes, edges: d.edges };
+              let s: SubDiagram = { nodes: d.nodes, edges: d.edges, lines: d.lines ?? [] };
               for (const nid of drillStackRef.current) {
                 const found = (s.nodes ?? []).find((n) => n.id === nid);
-                if (!found) return { nodes: [], edges: [] };
-                s = found.diagram ?? { nodes: [], edges: [] };
+                if (!found) return { nodes: [], edges: [], lines: [] };
+                s = found.diagram ?? { nodes: [], edges: [], lines: [] };
               }
               return s;
             })();
@@ -633,12 +687,94 @@ export function FlowEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingCommand]);
 
+  const screenToFlow = React.useCallback((x: number, y: number) => {
+    const hasConverter = typeof (rf as unknown as { screenToFlowPosition?: (p: { x: number; y: number }) => { x: number; y: number } }).screenToFlowPosition === 'function';
+    if (hasConverter) {
+      return (rf as unknown as { screenToFlowPosition: (p: { x: number; y: number }) => { x: number; y: number } }).screenToFlowPosition({ x, y });
+    }
+    const vp = (rf as unknown as { getViewport: () => { x: number; y: number; zoom: number } }).getViewport();
+    return { x: (x - vp.x) / vp.zoom, y: (y - vp.y) / vp.zoom };
+  }, [rf]);
+
+  React.useEffect(() => {
+    try {
+      const vp = (rf as unknown as { getViewport: () => { x: number; y: number; zoom: number } }).getViewport();
+      setViewport(vp);
+      viewportRef.current = vp;
+    } catch {
+      // ignore
+    }
+  }, [rf]);
+
+  // clear dragging on mouse up anywhere
+  React.useEffect(() => {
+    const up = () => {
+      // setDraggingPoint(null); // Removed as per new logic
+      // setDraggingLine(null); // Removed as per new logic
+    };
+    window.addEventListener('mouseup', up);
+    return () => window.removeEventListener('mouseup', up);
+  }, []);
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isDrawingLine) return;
+      if (e.key === 'Escape') {
+        setIsDrawingLine(false);
+        setDraftPoints([]);
+      } else if (e.key === 'Enter') {
+        if (draftPoints.length >= 3) {
+          const fixedPoints = draftPoints.slice(0, -1);
+          const newLine: DiagramPolyline = { id: nanoid(), points: fixedPoints, strokeColor: '#4b5563', strokeWidth: 2 };
+          setNodes((prev) => [
+            ...prev,
+            createPolylineRFNode(newLine.id, fixedPoints, { strokeColor: '#4b5563', strokeWidth: 2 })
+          ]);
+        }
+        setIsDrawingLine(false);
+        setDraftPoints([]);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isDrawingLine, draftPoints]);
+
+  const createPolylineRFNode = React.useCallback((id: string, absPoints: { x: number; y: number }[], style?: { strokeColor?: string; strokeWidth?: number; dashed?: boolean }): RFNode => {
+    const minX = Math.min(...absPoints.map((p) => p.x));
+    const minY = Math.min(...absPoints.map((p) => p.y));
+    const maxX = Math.max(...absPoints.map((p) => p.x));
+    const maxY = Math.max(...absPoints.map((p) => p.y));
+    const PAD = 8; // ensure handles are fully visible inside the node box
+    const width = Math.max(1, (maxX - minX) + 2 * PAD);
+    const height = Math.max(1, (maxY - minY) + 2 * PAD);
+    const rel = absPoints.map((p) => ({ x: (p.x - minX) + PAD, y: (p.y - minY) + PAD }));
+    type RelPoint = { x: number; y: number };
+    return {
+      id: `poly:${id}`,
+      type: 'archPolylineNode' as unknown as RFNode['type'],
+      position: { x: minX - PAD, y: minY - PAD },
+      data: {
+        lineId: id,
+        points: rel,
+        strokeColor: style?.strokeColor ?? '#4b5563',
+        strokeWidth: style?.strokeWidth ?? 2,
+        dashed: style?.dashed,
+        padding: PAD,
+        onUpdatePoints: (lid: string, nextRel: RelPoint[]) => {
+          setNodes((prev) => prev.map((n) => n.id === `poly:${lid}` ? { ...n, data: { ...(n.data as object), points: nextRel } } as RFNode : n));
+        },
+      },
+      style: { width, height },
+    } as unknown as RFNode;
+  }, [setNodes]);
+
   return (
     <div className="flex flex-col h-[calc(100vh-48px)]">
       {/* Global search below the action buttons */}
       <GlobalSearch ensureSyncedThen={ensureSyncedThen} />
       <div className="flex-1 min-h-0">
         <ReactFlow
+          className={cn(isDrawingLine ? "cursor-crosshair" : undefined)}
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -659,11 +795,87 @@ export function FlowEditor() {
             setSelectedNodeId(n?.id ?? null);
           }}
           fitView
+          onMove={(_, vp) => {
+            viewportRef.current = vp;
+            if (viewportRafRef.current == null) {
+              viewportRafRef.current = requestAnimationFrame(() => {
+                viewportRafRef.current = null;
+                setViewport(viewportRef.current);
+              });
+            }
+          }}
+          onMoveEnd={(_, vp) => {
+            if (viewportRafRef.current != null) {
+              cancelAnimationFrame(viewportRafRef.current);
+              viewportRafRef.current = null;
+            }
+            setViewport(vp);
+          }}
+          onMouseMove={(e) => {
+            const p = screenToFlow(e.clientX, e.clientY);
+            // if (draggingPoint) { // Removed as per new logic
+            //   setLines((prev) => prev.map((l) => { // Removed as per new logic
+            //     if (l.id !== draggingPoint.lineId) return l; // Removed as per new logic
+            //     const pts = l.points.slice(); // Removed as per new logic
+            //     pts[draggingPoint.index] = p; // Removed as per new logic
+            //     return { ...l, points: pts }; // Removed as per new logic
+            //   })); // Removed as per new logic
+            //   return; // Removed as per new logic
+            // } // Removed as per new logic
+            // if (draggingLine) { // Removed as per new logic
+            //   const dx = p.x - draggingLine.originMouse.x; // Removed as per new logic
+            //   const dy = p.y - draggingLine.originMouse.y; // Removed as per new logic
+            //   setLines((prev) => prev.map((l) => { // Removed as per new logic
+            //     if (l.id !== draggingLine.lineId) return l; // Removed as per new logic
+            //     const moved = draggingLine.originPoints.map((pt) => ({ x: pt.x + dx, y: pt.y + dy })); // Removed as per new logic
+            //     return { ...l, points: moved }; // Removed as per new logic
+            //   })); // Removed as per new logic
+            //   return; // Removed as per new logic
+            // } // Removed as per new logic
+            if (!isDrawingLine || draftPoints.length === 0) return;
+            setDraftPoints((prev) => prev.length ? [...prev.slice(0, -1), p] : prev);
+          }}
+          onClick={(e) => {
+            const p = screenToFlow(e.clientX, e.clientY);
+            if (isDrawingLine) {
+              if (draftPoints.length === 0) {
+                setDraftPoints([p, p]);
+              } else {
+                setDraftPoints((prev) => [...prev, p]);
+              }
+            }
+          }}
+          onDoubleClick={(e) => {
+            if (!isDrawingLine) return;
+            e.stopPropagation();
+            if (draftPoints.length >= 3) {
+              const fixedPoints = draftPoints.slice(0, -1);
+              const newLineId = nanoid();
+              const node = createPolylineRFNode(newLineId, fixedPoints, { strokeColor: '#4b5563', strokeWidth: 2 });
+              setNodes((prev) => [...prev, node]);
+            }
+            setIsDrawingLine(false);
+            setDraftPoints([]);
+          }}
         >
           <FocusIntentHandler />
           <Background gap={16} />
           <MiniMap />
           <Controls />
+          {/* SVG overlay for draft line only */}
+          <svg className={cn("absolute inset-0 z-40", "pointer-events-none")} width="100%" height="100%">
+            <g transform={`matrix(${viewport.zoom},0,0,${viewport.zoom},${viewport.x},${viewport.y})`}>
+              {isDrawingLine && draftPoints.length >= 2 && (
+                <polyline
+                  points={draftPoints.map((p) => `${p.x},${p.y}`).join(" ")}
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                />
+              )}
+            </g>
+          </svg>
         </ReactFlow>
         <CreateNodeTemplateDialog isOpen={isCreateDialogOpen} onClose={() => setIsCreateDialogOpen(false)} />
         <TemplatesManagerDialog isOpen={isTemplatesManagerOpen} onClose={() => setIsTemplatesManagerOpen(false)} />

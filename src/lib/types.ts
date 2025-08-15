@@ -3,6 +3,8 @@ export type DiagramId = string;
 export type NodeKind =
   | "rectangle"
   | "ellipse"
+  | "square"
+  | "line"
   | "text"
   | "container"
   | "virtual";
@@ -44,6 +46,20 @@ export interface DiagramEdgeLabel {
   background?: string;
 }
 
+// Freeform polyline drawn on the canvas (not a node)
+export interface DiagramPolylinePoint {
+  x: number;
+  y: number;
+}
+
+export interface DiagramPolyline {
+  id: string;
+  points: DiagramPolylinePoint[];
+  strokeColor?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
+}
+
 export interface DiagramEdge {
   id: string;
   source: string;
@@ -69,11 +85,13 @@ export interface DiagramMeta {
 export interface Diagram extends DiagramMeta {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
+  lines: DiagramPolyline[];
 }
 
 export interface SubDiagram {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
+  lines: DiagramPolyline[];
 }
 
 export interface NodeTemplateMeta {

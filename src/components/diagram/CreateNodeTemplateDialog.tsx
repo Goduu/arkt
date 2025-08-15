@@ -84,6 +84,8 @@ export function CreateNodeTemplateDialog({ isOpen, onClose, mode = "create", tem
                 <option value="rectangle">Rectangle</option>
                 <option value="ellipse">Ellipse</option>
                 <option value="text">Text</option>
+                <option value="square">Square</option>
+                <option value="line">Line</option>
                 <option value="container">Container</option>
               </select>
             </div>
@@ -96,11 +98,31 @@ export function CreateNodeTemplateDialog({ isOpen, onClose, mode = "create", tem
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Width</label>
-                <input type="number" min={60} className="w-full rounded border px-2 py-1 bg-transparent" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
+                <input
+                  type="number"
+                  min={nodeKind === "line" ? 20 : 60}
+                  className="w-full rounded border px-2 py-1 bg-transparent"
+                  value={width}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setWidth(val);
+                    if (nodeKind === "square") setHeight(val);
+                  }}
+                />
               </div>
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Height</label>
-                <input type="number" min={40} className="w-full rounded border px-2 py-1 bg-transparent" value={height} onChange={(e) => setHeight(Number(e.target.value))} />
+                <input
+                  type="number"
+                  min={nodeKind === "line" ? 2 : 40}
+                  className="w-full rounded border px-2 py-1 bg-transparent"
+                  value={height}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setHeight(val);
+                    if (nodeKind === "square") setWidth(val);
+                  }}
+                />
               </div>
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Rotation</label>

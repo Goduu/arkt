@@ -21,13 +21,19 @@ export type ArchNodeViewProps = {
 
 export function ArchNodeView(props: ArchNodeViewProps): React.JSX.Element {
   const kind = (props.nodeKind ?? "rectangle") as NodeKind | string;
+  const isLine = kind === "line";
+  const isSquare = kind === "square";
   const isTailwindBg = typeof props.fillColor === "string" && props.fillColor.startsWith("bg-");
   const isTailwindText = typeof props.textColor === "string" && props.textColor.startsWith("text-");
 
-  const roundedClass = kind === "ellipse" ? "rounded-full" : "rounded-md";
-  const borderClass = kind === "container" ? "border border-dashed" : "border";
+  const roundedClass = kind === "ellipse" ? "rounded-full" : isLine ? "rounded-none" : "rounded-md";
+  const borderClass = kind === "container" ? "border border-dashed" : isLine ? "border-0" : "border";
   const isTailwindBorder = typeof props.borderColor === "string" && props.borderColor.startsWith("border-");
-  const backgroundStyle = kind === "text" ? undefined : isTailwindBg ? undefined : props.fillColor;
+  const backgroundStyle = kind === "text"
+    ? undefined
+    : isLine
+      ? (isTailwindBorder ? undefined : (props.borderColor ?? props.fillColor))
+      : (isTailwindBg ? undefined : props.fillColor);
 
   const IconBadge = React.useMemo(() => {
     if (!props.iconKey) return null;
@@ -55,9 +61,11 @@ export function ArchNodeView(props: ArchNodeViewProps): React.JSX.Element {
       }}
     >
       {IconBadge}
-      <div className="px-3 py-2">
-        <div className="text-sm font-medium truncate">{props.label}</div>
-      </div>
+      {!isLine && (
+        <div className="px-3 py-2">
+          <div className="text-sm font-medium truncate">{props.label}</div>
+        </div>
+      )}
     </div>
   );
 }
