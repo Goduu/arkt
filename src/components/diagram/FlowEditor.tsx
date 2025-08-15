@@ -23,7 +23,7 @@ import "reactflow/dist/style.css";
 import { useAppStore } from "@/lib/store";
 import type { Diagram, DiagramEdge, DiagramNode, RFArchEdgeData, RFArchNodeData, SubDiagram } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Download, Upload, CornerUpLeft, Link as LinkIcon, Square } from "lucide-react";
+import { Download, Upload, CornerUpLeft } from "lucide-react";
 import { ArchNode } from "@/components/diagram/nodes/ArchNode";
 import { ArchTextNode } from "@/components/diagram/nodes/ArchTextNode";
 import { NodeControls } from "./NodeControls";
@@ -34,6 +34,7 @@ import { ArchEdge } from "@/components/diagram/edges/ArchEdge";
 import { CreateNodeTemplateDialog } from "./CreateNodeTemplateDialog";
 import { getIconByKey } from "@/lib/iconRegistry";
 import { cn } from "@/lib/utils";
+import { GlobalSearch } from "@/components/GlobalSearch";
 
 
 function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: string) => void }): RFNode {
@@ -88,7 +89,7 @@ function toRFEdge(e: DiagramEdge): RFEdge {
 }
 
 export function FlowEditor() {
-  const { diagrams, currentId, setNodesEdges, addNode, navigateTo, drillStack, pushDrill, popDrill, setDrillStack, setPendingFocus, pendingSpawn, setPendingSpawn, nodeTemplates } = useAppStore();
+  const { diagrams, currentId, setNodesEdges, addNode, navigateTo, drillStack, pushDrill, popDrill, setDrillStack, setPendingFocus, pendingSpawn, setPendingSpawn, nodeTemplates, pendingCommand, setPendingCommand } = useAppStore();
   const diagram: Diagram | undefined = diagrams[currentId];
   const rf = useReactFlow();
 
@@ -379,20 +380,23 @@ export function FlowEditor() {
 
   const onAddNode = () => {
     if (!diagram) return;
+    const nodeWidth = 180;
+    const nodeHeight = 80;
+    const position = getSpawnPosition(nodeWidth, nodeHeight);
     if (drillStack.length === 0) {
       const id = addNode(diagram.id, {
         type: "rectangle",
-        position: { x: Math.random() * 300 + 100, y: Math.random() * 200 + 100 },
-        width: 180,
-        height: 80,
+        position,
+        width: nodeWidth,
+        height: nodeHeight,
         data: { label: "Node" },
         diagram: { nodes: [], edges: [] },
       });
-      setNodes((prev) => [...prev, toRFNode({ id, type: "rectangle", position: { x: 100, y: 100 }, data: { label: "Node" }, width: 180, height: 80, diagram: { nodes: [], edges: [] } })]);
+      setNodes((prev) => [...prev, toRFNode({ id, type: "rectangle", position, data: { label: "Node" }, width: nodeWidth, height: nodeHeight, diagram: { nodes: [], edges: [] } })]);
       return;
     }
     const id = nanoid();
-    setNodes((prev) => [...prev, toRFNode({ id, type: "rectangle", position: { x: 100, y: 100 }, data: { label: "Node" }, width: 180, height: 80, diagram: { nodes: [], edges: [] } })]);
+    setNodes((prev) => [...prev, toRFNode({ id, type: "rectangle", position, data: { label: "Node" }, width: nodeWidth, height: nodeHeight, diagram: { nodes: [], edges: [] } })]);
     // persistence handled by autosave
   };
 
@@ -426,8 +430,7 @@ export function FlowEditor() {
   const [virtualSearch, setVirtualSearch] = React.useState<string>("");
   const [virtualSelection, setVirtualSelection] = React.useState<FlattenedNode | null>(null);
 
-  // --- Global search state ---
-  const [globalSearch, setGlobalSearch] = React.useState<string>("");
+  // --- Global search moved to component ---
 
   const flattenAllNodes = React.useCallback((): FlattenedNode[] => {
     const results: FlattenedNode[] = [];
@@ -456,14 +459,7 @@ export function FlowEditor() {
     return base.filter((f) => !currentDomainNodeIds.has(f.nodeId)).slice(0, 200);
   }, [allFlattened, virtualSearch, currentDomainNodeIds]);
 
-  // Global search results (across all diagrams; don't exclude current domain)
-  const globalResults = React.useMemo(() => {
-    const q = globalSearch.trim().toLowerCase();
-    if (!q) return [] as FlattenedNode[];
-    return allFlattened
-      .filter((f) => f.label.toLowerCase().includes(q) || f.pathLabels.some((p) => p.toLowerCase().includes(q)))
-      .slice(0, 200);
-  }, [allFlattened, globalSearch]);
+  // Global search handled by GlobalSearch component
 
   const handleAddVirtualNode = () => {
     setIsVirtualDialogOpen(true);
@@ -585,24 +581,25 @@ export function FlowEditor() {
     });
   }, [ensureSyncedThen, findNodeAcrossDiagrams, currentId, navigateTo, setDrillStack]);
 
-  const handleGoToSearchItem = React.useCallback((item: FlattenedNode) => {
-    ensureSyncedThen(() => {
-      if (currentId !== item.diagramId) navigateTo(item.diagramId);
-      setDrillStack(item.pathIds);
-      setPendingFocus({ diagramId: item.diagramId, containerPathIds: item.pathIds, focusNodeIds: [item.nodeId] });
-    });
-    setGlobalSearch("");
-  }, [ensureSyncedThen, currentId, navigateTo, setDrillStack, setPendingFocus]);
+  // handleGoToSearchItem now lives inside GlobalSearch
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState<boolean>(false);
+
+  // Handle global pending commands (from sidebar Add menu)
+  React.useEffect(() => {
+    if (!pendingCommand) return;
+    const t = pendingCommand.type;
+    if (t === "addText") onAddTextNode();
+    else if (t === "addNode") onAddNode();
+    else if (t === "addVirtual") setIsVirtualDialogOpen(true);
+    else if (t === "openCreateTemplate") setIsCreateDialogOpen(true);
+    setPendingCommand(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCommand]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-48px)]">
       <div className="flex items-center gap-2 border-b p-2">
-        <Button size="sm" onClick={onAddNode}>Add node</Button>
-        <Button size="sm" onClick={onAddTextNode}>Add text</Button>
-        <Button size="sm" variant="outline" onClick={() => setIsCreateDialogOpen(true)}>Create node</Button>
-        <Button size="sm" variant="outline" onClick={handleAddVirtualNode}>Add virtual node</Button>
         {isNestedView && (
           <Button size="sm" variant="outline" onClick={onBack}><CornerUpLeft className="mr-2 h-4 w-4" /> Back</Button>
         )}
@@ -614,78 +611,7 @@ export function FlowEditor() {
         </div>
       </div>
       {/* Global search below the action buttons */}
-      <div className="border-b p-2 gap-2 flex flex-col">
-        <div className="relative max-w-xl">
-          <input
-            className="w-full rounded border px-2 py-1 bg-transparent"
-            placeholder="Search nodes across all diagrams..."
-            value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
-          />
-          {globalSearch && globalResults.length > 0 && (
-            <div className="absolute z-20 mt-1 w-full border rounded bg-background max-h-64 overflow-auto shadow">
-              <ul>
-                {globalResults.map((item) => {
-                  const isVirtual = item.nodeType === "virtual";
-                  return (
-                    <li key={`${item.diagramId}:${item.nodeId}`}>
-                      <button
-                        className="w-full px-3 py-2 text-sm hover:bg-muted"
-                        onClick={() => handleGoToSearchItem(item)}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="font-medium truncate">{item.label}</div>
-                            <div className="text-xs text-muted-foreground truncate">{item.pathLabels.join(" › ")} {item.pathLabels.length ? "(path)" : ""}</div>
-                          </div>
-                          <div className="shrink-0 text-muted-foreground">
-                            {isVirtual ? (
-                              <LinkIcon className="h-3.5 w-3.5" />
-                            ) : (
-                              <Square className="h-3.5 w-3.5" />
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="border-b p-2 gap-2 flex">
-        {Object.values(nodeTemplates).map((tpl) => {
-          const def = getIconByKey(tpl.data.iconKey);
-          const I = def?.Icon;
-          return (
-            <Button key={tpl.id} size="sm" variant="outline" onClick={() => setPendingSpawn({ templateId: tpl.id })} title={tpl.name} className="inline-flex items-center gap-2">
-              <span
-                className={cn(
-                  "inline-flex items-center justify-center",
-                  tpl.type === "ellipse" ? "rounded-full" : "rounded-sm",
-                  "border w-3.5 h-3.5",
-                  typeof tpl.data.fillColor === "string" && tpl.data.fillColor.startsWith("bg-") ? tpl.data.fillColor : "",
-                  typeof tpl.data.borderColor === "string" && tpl.data.borderColor.startsWith("border-") ? tpl.data.borderColor : "",
-                )}
-                style={{
-                  backgroundColor:
-                    typeof tpl.data.fillColor === "string" && tpl.data.fillColor.startsWith("bg-")
-                      ? undefined
-                      : (tpl.data.fillColor as string | undefined),
-                  borderColor:
-                    typeof tpl.data.borderColor === "string" && tpl.data.borderColor.startsWith("border-")
-                      ? undefined
-                      : (tpl.data.borderColor as string | undefined),
-                }}
-              ></span>
-              {I ? <I className="h-4 w-4" /> : null}
-              <span className="hidden sm:inline text-xs">{tpl.name}</span>
-            </Button>
-          );
-        })}
-      </div>
+      <GlobalSearch ensureSyncedThen={ensureSyncedThen} />
       <div className="flex-1 min-h-0">
         <ReactFlow
           nodes={nodes}

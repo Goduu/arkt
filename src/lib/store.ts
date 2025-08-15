@@ -12,6 +12,7 @@ export interface AppStoreState {
   drillStack: string[]; // path of node ids inside the current diagram
   nodeTemplates: Record<string, NodeTemplate>;
   pendingSpawn?: { templateId: string } | null;
+  pendingCommand?: { type: "addText" | "addNode" | "addVirtual" | "openCreateTemplate" } | null;
   // transient UI intents
   pendingFocus: null | { diagramId: DiagramId; containerPathIds: string[]; focusNodeIds?: string[]; focusEdgeId?: string };
   // actions
@@ -28,6 +29,7 @@ export interface AppStoreState {
   updateNodeTemplate: (tpl: NodeTemplate) => void;
   deleteNodeTemplate: (tplId: string) => void;
   setPendingSpawn: (spawn: AppStoreState["pendingSpawn"]) => void;
+  setPendingCommand: (cmd: AppStoreState["pendingCommand"]) => void;
   addNode: (diagramId: DiagramId, node: Omit<DiagramNode, "id">) => string;
   updateNode: (diagramId: DiagramId, node: DiagramNode) => void;
   removeNode: (diagramId: DiagramId, nodeId: string) => void;
@@ -67,6 +69,7 @@ export const useAppStore = create<AppStoreState>()(
       drillStack: [],
       nodeTemplates: {},
       pendingSpawn: null,
+      pendingCommand: null,
       pendingFocus: null,
 
   createDiagram: (name: string, parentId?: DiagramId) => {
@@ -135,6 +138,8 @@ export const useAppStore = create<AppStoreState>()(
   },
 
   setPendingSpawn: (spawn) => set({ pendingSpawn: spawn }),
+
+  setPendingCommand: (cmd) => set({ pendingCommand: cmd }),
 
   addNode: (diagramId: DiagramId, node: Omit<DiagramNode, "id">) => {
     const id = nanoid();

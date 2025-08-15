@@ -100,6 +100,8 @@ export const DEFAULT_COLORS = {
   text: "#111827",
 } as const;
 
+export type FlattenedNode = { nodeId: string; label: string; diagramId: string; pathIds: string[]; pathLabels: string[]; nodeType: DiagramNode["type"] };
+
 // React Flow runtime data mirrors used in FlowEditor
 export type RFArchEdgeData = {
   shape?: "straight" | "bezier" | "smoothstep" | "step";
