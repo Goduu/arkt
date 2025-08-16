@@ -153,3 +153,11 @@
     --sidebar-ring: oklch(0.439 0 0);
   }
 }
+
+@layer utilities {
+  /* Force crosshair across all descendants when applied to a container */
+  .cursor-crosshair-global,
+  .cursor-crosshair-global * {
+    cursor: crosshair !important;
+  }
+}

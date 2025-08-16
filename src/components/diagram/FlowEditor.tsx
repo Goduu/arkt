@@ -118,16 +118,60 @@ export function FlowEditor() {
     return getNestedDiagram(diagram.nodes, drillStack);
   }, [diagram, drillStack, getNestedDiagram]);
 
-  const initialNodes = React.useMemo(() =>
-    (currentDomain.nodes ?? []).map((n) => toRFNode(n, isNestedView ? {
-      onLabelCommit: (id, next) => {
-        // reflect immediately in RF; persistence handled by autosave
-        setNodes((prev) => prev.map((rn) => (rn.id === id ? { ...rn, data: { ...rn.data, label: next } } : rn)));
+  // Converter for stored polyline to RF node (includes onUpdatePoints)
+  const polylineToRFNode = (id: string, absPoints: { x: number; y: number }[], style?: { strokeColor?: string; strokeWidth?: number; dashed?: boolean }): RFNode => {
+    const minX = Math.min(...absPoints.map((p) => p.x));
+    const minY = Math.min(...absPoints.map((p) => p.y));
+    const maxX = Math.max(...absPoints.map((p) => p.x));
+    const maxY = Math.max(...absPoints.map((p) => p.y));
+    const PAD = 8;
+    const width = Math.max(1, (maxX - minX) + 2 * PAD);
+    const height = Math.max(1, (maxY - minY) + 2 * PAD);
+    const rel = absPoints.map((p) => ({ x: (p.x - minX) + PAD, y: (p.y - minY) + PAD }));
+    return {
+      id: `poly:${id}`,
+      type: 'archPolylineNode' as unknown as RFNode['type'],
+      position: { x: minX - PAD, y: minY - PAD },
+      data: {
+        lineId: id,
+        points: rel,
+        strokeColor: style?.strokeColor ?? '#4b5563',
+        strokeWidth: style?.strokeWidth ?? 2,
+        dashed: style?.dashed,
+        padding: PAD,
+        onUpdatePoints: (lid: string, nextRel: { x: number; y: number }[]) => {
+          setNodes((prev) => prev.map((n) => n.id === `poly:${lid}` ? { ...n, data: { ...(n.data as object), points: nextRel } } as RFNode : n));
+        },
       },
-    } : undefined)),
+      style: { width, height },
+    } as unknown as RFNode;
+  };
+
+  const initialNodes = React.useMemo(() => {
+    const base = (currentDomain.nodes ?? []).flatMap((n) => {
+      if ((n as DiagramNode).type === 'polyline') {
+        const pdata = (n.data as any)?.polyline as { points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean } | undefined;
+        const pts = Array.isArray(pdata?.points) ? (pdata?.points as { x: number; y: number }[]) : [];
+        if (pts.length >= 2) {
+          const abs = pts.map((p) => ({ x: p.x + n.position.x, y: p.y + n.position.y }));
+          return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth, dashed: pdata?.dashed })];
+        }
+        return [];
+      }
+      return [toRFNode(n, isNestedView ? {
+        onLabelCommit: (id, next) => {
+          setNodes((prev) => prev.map((rn) => (rn.id === id ? { ...rn, data: { ...rn.data, label: next } } : rn)));
+        },
+      } : undefined)];
+    });
+    const polyNodeIds = new Set((currentDomain.nodes ?? []).filter((n) => n.type === 'polyline').map((n) => n.id));
+    const legacy = (currentDomain.lines ?? [])
+      .filter((l) => !polyNodeIds.has(l.id))
+      .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth, dashed: l.dashed }));
+    return [...base, ...legacy];
+  },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [diagram?.id, drillStack]
-  );
+  [diagram?.id, drillStack]);
   const initialEdges = React.useMemo(() => (currentDomain.edges ?? []).map(toRFEdge), [currentDomain.edges]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -203,9 +247,25 @@ export function FlowEditor() {
   }, [pendingSpawn, nodeTemplates, diagram, drillStack.length, addNode, setNodes, setPendingSpawn, getSpawnPosition]);
 
   React.useEffect(() => {
-    setNodes((currentDomain.nodes ?? []).map((n) => toRFNode(n, isNestedView ? {
-      onLabelCommit: (id, next) => setNodes((prev) => prev.map((rn) => (rn.id === id ? { ...rn, data: { ...rn.data, label: next } } : rn))),
-    } : undefined)));
+    const base = (currentDomain.nodes ?? []).flatMap((n) => {
+      if ((n as DiagramNode).type === 'polyline') {
+        const pdata = (n.data as any)?.polyline as { points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean } | undefined;
+        const pts = Array.isArray(pdata?.points) ? (pdata?.points as { x: number; y: number }[]) : [];
+        if (pts.length >= 2) {
+          const abs = pts.map((p) => ({ x: p.x + n.position.x, y: p.y + n.position.y }));
+          return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth, dashed: pdata?.dashed })];
+        }
+        return [];
+      }
+      return [toRFNode(n, isNestedView ? {
+        onLabelCommit: (id, next) => setNodes((prev) => prev.map((rn) => (rn.id === id ? { ...rn, data: { ...rn.data, label: next } } : rn))),
+      } : undefined)];
+    });
+    const polyNodeIds = new Set((currentDomain.nodes ?? []).filter((n) => n.type === 'polyline').map((n) => n.id));
+    const legacy = (currentDomain.lines ?? [])
+      .filter((l) => !polyNodeIds.has(l.id))
+      .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth, dashed: l.dashed }));
+    setNodes([...base, ...legacy]);
     setEdges((currentDomain.edges ?? []).map(toRFEdge));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diagram?.id, drillStack]);
@@ -265,6 +325,36 @@ export function FlowEditor() {
     const rfEdges = edgesRef.current;
 
     const toDomainNodes = (baseNodes: DiagramNode[]) => rfNodes.map((n) => {
+      // Persist polyline as a node type with relative points
+      if (n.type === 'archPolylineNode') {
+        const d = (n.data ?? {}) as unknown as { lineId?: string; points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean; padding?: number };
+        const styleWidth = (n as RFNode).style?.width;
+        const styleHeight = (n as RFNode).style?.height;
+        const resolvedWidth = typeof styleWidth === 'number' ? styleWidth : 180;
+        const resolvedHeight = typeof styleHeight === 'number' ? styleHeight : 80;
+        const nodeId = String(d.lineId ?? n.id.replace(/^poly:/, ''));
+        const existingDiagram = baseNodes.find((bn) => bn.id === nodeId)?.diagram ?? { nodes: [], edges: [], lines: [] };
+        const polyNode: DiagramNode = {
+          id: nodeId,
+          type: 'polyline',
+          position: n.position,
+          width: resolvedWidth,
+          height: resolvedHeight,
+          rotation: 0,
+          data: {
+            label: '',
+            polyline: {
+              points: (d.points ?? []),
+              strokeColor: d.strokeColor,
+              strokeWidth: typeof d.strokeWidth === 'number' ? d.strokeWidth : 2,
+              dashed: d.dashed,
+              padding: typeof d.padding === 'number' ? d.padding : 8,
+            },
+          },
+          diagram: existingDiagram,
+        };
+        return polyNode;
+      }
       const styleWidth = (n as RFNode).style?.width;
       const styleHeight = (n as RFNode).style?.height;
       const dataWidth = (n.data as RFArchNodeData)?.width;
@@ -320,15 +410,8 @@ export function FlowEditor() {
           animated: Boolean(d.animated),
         };
       });
-      const asDomainLines: DiagramPolyline[] = nodesRef.current
-        .filter((n) => n.type === 'archPolylineNode')
-        .map((n) => {
-          const d = (n.data ?? {}) as unknown as { lineId?: string; points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean };
-          const origin = n.position;
-          const absPoints = (d.points ?? []).map((p) => ({ x: p.x + origin.x, y: p.y + origin.y }));
-          return { id: String(d.lineId ?? n.id.replace(/^poly:/, '')), points: absPoints, strokeColor: d.strokeColor, strokeWidth: d.strokeWidth, dashed: d.dashed } as DiagramPolyline;
-        });
-      setNodesEdges(id, asDomainNodes, asDomainEdges, asDomainLines);
+      // Persist polylines as nodes only; clear legacy lines array
+      setNodesEdges(id, asDomainNodes, asDomainEdges, []);
       return;
     }
 
@@ -376,15 +459,8 @@ export function FlowEditor() {
         animated: Boolean(d.animated),
       };
     });
-    const updatedNestedLines: DiagramPolyline[] = nodesRef.current
-      .filter((n) => n.type === 'archPolylineNode')
-      .map((n) => {
-        const d = (n.data ?? {}) as unknown as { lineId?: string; points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean };
-        const origin = n.position;
-        const absPoints = (d.points ?? []).map((p) => ({ x: p.x + origin.x, y: p.y + origin.y }));
-        return { id: String(d.lineId ?? n.id.replace(/^poly:/, '')), points: absPoints, strokeColor: d.strokeColor, strokeWidth: d.strokeWidth, dashed: d.dashed } as DiagramPolyline;
-      });
-    const updatedTop = replaceNested(existing.nodes, stack, { nodes: updatedNestedNodes, edges: updatedNestedEdges, lines: updatedNestedLines });
+    // Persist polylines as nodes only in nested sub-diagrams
+    const updatedTop = replaceNested(existing.nodes, stack, { nodes: updatedNestedNodes, edges: updatedNestedEdges, lines: [] });
     setNodesEdges(id, updatedTop, existing.edges, existing.lines);
   }, [setNodesEdges]);
 
@@ -640,14 +716,30 @@ export function FlowEditor() {
     else if (t === "openCreateTemplate") setIsCreateDialogOpen(true);
     else if (t === "openTemplates") setIsTemplatesManagerOpen(true);
     else if (t === "refreshTemplates") {
-      // Rebuild RF state from latest store for current domain
-      setNodes((currentDomain.nodes ?? []).map((n) => toRFNode(n, isNestedView ? {
-        onLabelCommit: (id, next) => setNodes((prev) => prev.map((rn) => (rn.id === id ? { ...rn, data: { ...rn.data, label: next } } : rn))),
-      } : undefined)));
+      // Rebuild RF state from latest store for current domain, including polylines from nodes and legacy lines
+      const base = (currentDomain.nodes ?? []).flatMap((n) => {
+        if ((n as DiagramNode).type === 'polyline') {
+          const pdata = (n.data as any)?.polyline as { points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean } | undefined;
+          const pts = Array.isArray(pdata?.points) ? (pdata?.points as { x: number; y: number }[]) : [];
+          if (pts.length >= 2) {
+            const abs = pts.map((p) => ({ x: p.x + n.position.x, y: p.y + n.position.y }));
+            return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth, dashed: pdata?.dashed })];
+          }
+          return [];
+        }
+        return [toRFNode(n, isNestedView ? {
+          onLabelCommit: (id, next) => setNodes((prev) => prev.map((rn) => (rn.id === id ? { ...rn, data: { ...rn.data, label: next } } : rn))),
+        } : undefined)];
+      });
+      const polyNodeIds = new Set((currentDomain.nodes ?? []).filter((n) => n.type === 'polyline').map((n) => n.id));
+      const legacy = (currentDomain.lines ?? [])
+        .filter((l) => !polyNodeIds.has(l.id))
+        .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth, dashed: l.dashed }));
+      setNodes([...base, ...legacy]);
       setEdges((currentDomain.edges ?? []).map(toRFEdge));
     }
     else if (t === "save") syncToStore();
-    else if (t === "export") onExport();
+    else if (t === "export") ensureSyncedThen(onExport);
     else if (t === "import") {
       const payload = (pendingCommand as { type: "import"; data: unknown }).data as unknown;
       const maybeSnapshot = payload as Partial<AppStateSnapshot> | null;
@@ -670,7 +762,23 @@ export function FlowEditor() {
             })();
             return sub;
           })();
-          setNodes((domain.nodes ?? []).map((n) => toRFNode(n)));
+          const base = (domain.nodes ?? []).flatMap((n) => {
+            if ((n as DiagramNode).type === 'polyline') {
+              const pdata = (n.data as any)?.polyline as { points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean } | undefined;
+              const pts = Array.isArray(pdata?.points) ? (pdata?.points as { x: number; y: number }[]) : [];
+              if (pts.length >= 2) {
+                const abs = pts.map((p) => ({ x: p.x + n.position.x, y: p.y + n.position.y }));
+                return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth, dashed: pdata?.dashed })];
+              }
+              return [];
+            }
+            return [toRFNode(n)];
+          });
+          const polyNodeIds = new Set((domain.nodes ?? []).filter((n) => n.type === 'polyline').map((n) => n.id));
+          const legacy = (domain.lines ?? [])
+            .filter((l) => !polyNodeIds.has(l.id))
+            .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth, dashed: l.dashed }));
+          setNodes([...base, ...legacy]);
           setEdges((domain.edges ?? []).map(toRFEdge));
         }, 0);
       } else {
@@ -730,6 +838,7 @@ export function FlowEditor() {
             ...prev,
             createPolylineRFNode(newLine.id, fixedPoints, { strokeColor: '#4b5563', strokeWidth: 2 })
           ]);
+          setTimeout(syncToStore, 0);
         }
         setIsDrawingLine(false);
         setDraftPoints([]);
@@ -749,7 +858,7 @@ export function FlowEditor() {
     const height = Math.max(1, (maxY - minY) + 2 * PAD);
     const rel = absPoints.map((p) => ({ x: (p.x - minX) + PAD, y: (p.y - minY) + PAD }));
     type RelPoint = { x: number; y: number };
-    return {
+    const rfNode: RFNode = {
       id: `poly:${id}`,
       type: 'archPolylineNode' as unknown as RFNode['type'],
       position: { x: minX - PAD, y: minY - PAD },
@@ -766,6 +875,7 @@ export function FlowEditor() {
       },
       style: { width, height },
     } as unknown as RFNode;
+    return rfNode;
   }, [setNodes]);
 
   return (
@@ -774,7 +884,7 @@ export function FlowEditor() {
       <GlobalSearch ensureSyncedThen={ensureSyncedThen} />
       <div className="flex-1 min-h-0">
         <ReactFlow
-          className={cn(isDrawingLine ? "cursor-crosshair" : undefined)}
+          className={cn(isDrawingLine ? "cursor-crosshair-global" : undefined)}
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -788,6 +898,7 @@ export function FlowEditor() {
           nodeTypes={nodeTypes}
           edgeTypes={{ arch: ArchEdge }}
           nodesConnectable
+          nodesDraggable={!isDrawingLine}
           onSelectionChange={(sel) => {
             const e = (sel?.edges ?? [])[0] as RFEdge | undefined;
             setSelectedEdge(e ?? null);
@@ -853,6 +964,7 @@ export function FlowEditor() {
               const newLineId = nanoid();
               const node = createPolylineRFNode(newLineId, fixedPoints, { strokeColor: '#4b5563', strokeWidth: 2 });
               setNodes((prev) => [...prev, node]);
+              setTimeout(syncToStore, 0);
             }
             setIsDrawingLine(false);
             setDraftPoints([]);

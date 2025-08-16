@@ -5,6 +5,7 @@ export type NodeKind =
   | "ellipse"
   | "square"
   | "line"
+  | "polyline"
   | "text"
   | "container"
   | "virtual";
@@ -24,6 +25,14 @@ export interface DiagramNodeDataBase {
   virtualOf?: string;
   // If present, this node originated from a template; used to apply template updates
   templateId?: string;
+  // For polyline nodes only: points are relative to node's top-left corner
+  polyline?: {
+    points: DiagramPolylinePoint[];
+    strokeColor?: string;
+    strokeWidth?: number;
+    dashed?: boolean;
+    padding?: number;
+  };
 }
 
 export interface DiagramNode {
