@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddVirtualDialog } from "./AddVirtualDialog";
+import { DraftLineOverlay } from "./DraftLineOverlay";
 
 
 function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: string) => void }): RFNode {
@@ -881,25 +882,6 @@ export function FlowEditor() {
           }}
           onMouseMove={(e) => {
             const p = screenToFlow(e.clientX, e.clientY);
-            // if (draggingPoint) { // Removed as per new logic
-            //   setLines((prev) => prev.map((l) => { // Removed as per new logic
-            //     if (l.id !== draggingPoint.lineId) return l; // Removed as per new logic
-            //     const pts = l.points.slice(); // Removed as per new logic
-            //     pts[draggingPoint.index] = p; // Removed as per new logic
-            //     return { ...l, points: pts }; // Removed as per new logic
-            //   })); // Removed as per new logic
-            //   return; // Removed as per new logic
-            // } // Removed as per new logic
-            // if (draggingLine) { // Removed as per new logic
-            //   const dx = p.x - draggingLine.originMouse.x; // Removed as per new logic
-            //   const dy = p.y - draggingLine.originMouse.y; // Removed as per new logic
-            //   setLines((prev) => prev.map((l) => { // Removed as per new logic
-            //     if (l.id !== draggingLine.lineId) return l; // Removed as per new logic
-            //     const moved = draggingLine.originPoints.map((pt) => ({ x: pt.x + dx, y: pt.y + dy })); // Removed as per new logic
-            //     return { ...l, points: moved }; // Removed as per new logic
-            //   })); // Removed as per new logic
-            //   return; // Removed as per new logic
-            // } // Removed as per new logic
             if (!isDrawingLine || draftPoints.length === 0) return;
             setDraftPoints((prev) => prev.length ? [...prev.slice(0, -1), p] : prev);
           }}
@@ -929,22 +911,9 @@ export function FlowEditor() {
         >
           <FocusIntentHandler />
           <Background gap={16} />
-          <MiniMap />
+          <MiniMap nodeColor={nodeColor} />
           <Controls />
-          {/* SVG overlay for draft line only */}
-          <svg className={cn("absolute inset-0 z-40", "pointer-events-none")} width="100%" height="100%">
-            <g transform={`matrix(${viewport.zoom},0,0,${viewport.zoom},${viewport.x},${viewport.y})`}>
-              {isDrawingLine && draftPoints.length >= 2 && (
-                <polyline
-                  points={draftPoints.map((p) => `${p.x},${p.y}`).join(" ")}
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  strokeDasharray="4 4"
-                />
-              )}
-            </g>
-          </svg>
+          <DraftLineOverlay viewport={viewport} isDrawingLine={isDrawingLine} draftPoints={draftPoints} />
         </ReactFlow>
         <CreateNodeTemplateDialog isOpen={isCreateDialogOpen} onClose={() => setIsCreateDialogOpen(false)} />
         <TemplatesManagerDialog isOpen={isTemplatesManagerOpen} onClose={() => setIsTemplatesManagerOpen(false)} />
@@ -975,44 +944,21 @@ export function FlowEditor() {
           diagrams={diagrams}
           currentDomain={currentDomain}
         />
-        // <div className="fixed inset-0 z-50 grid place-items-center bg-black/40">
-        //   <div className="w-[600px] max-w-[90vw] rounded-md border bg-background shadow-lg">
-        //     <div className="border-b px-3 py-2 text-sm font-medium">Add virtual node</div>
-        //     <div className="p-3 space-y-3">
-        //       <input
-        //         className="w-full rounded border px-2 py-1 bg-transparent"
-        //         placeholder="Search nodes by label..."
-        //         value={virtualSearch}
-        //         onChange={(e) => setVirtualSearch(e.target.value)}
-        //       />
-        //       <div className="max-h-64 overflow-auto border rounded">
-        //         <ul>
-        //           {filteredFlattened.map((item) => {
-        //             const isSelected = virtualSelection?.nodeId === item.nodeId && virtualSelection.diagramId === item.diagramId;
-        //             return (
-        //               <li key={`${item.diagramId}:${item.nodeId}`}>
-        //                 <button
-        //                   className={`w-full text-left px-3 py-2 text-sm ${isSelected ? "bg-accent" : "hover:bg-muted"}`}
-        //                   onClick={() => setVirtualSelection(item)}
-        //                 >
-        //                   <div className="font-medium truncate">{item.label}</div>
-        //                   <div className="text-xs text-muted-foreground truncate">{item.pathLabels.join(" › ")} {item.pathLabels.length ? "(path)" : ""}</div>
-        //                 </button>
-        //               </li>
-        //             );
-        //           })}
-        //         </ul>
-        //       </div>
-        //       <div className="flex justify-end gap-2">
-        //         <Button size="sm" variant="outline" onClick={() => setIsVirtualDialogOpen(false)}>Cancel</Button>
-        //         <Button size="sm" disabled={!virtualSelection} onClick={confirmAddVirtualNode}>Add</Button>
-        //       </div>
-        //     </div>
-        //   </div>
-        // </div>
       )}
     </div>
   );
 }
 
 
+function nodeColor(node: RFNode) {
+  switch (node.type) {
+    case 'archTextNode':
+      return '#ff0000';
+    case 'archNode':
+      return '#6865A5';
+    case 'archPolylineNode':
+      return '#fff';
+    default:
+      return '#ff0072';
+  }
+}
