@@ -11,7 +11,6 @@ export type ArchPolylineData = {
     points: ArchPolylinePoint[]; // relative to node's top-left
     strokeColor?: string;
     strokeWidth?: number;
-    dashed?: boolean;
     padding?: number;
     onUpdatePoints?: (lineId: string, nextRelativePoints: ArchPolylinePoint[]) => void;
 };
@@ -107,30 +106,28 @@ export function ArchPolylineNode(props: NodeProps<ArchPolylineData>): React.JSX.
     const h = Math.max(1, dims.h);
     const stroke = data.strokeColor ?? "#4b5563";
     const strokeWidth = Math.max(1, Number(data.strokeWidth ?? 2));
-    const dash = data.dashed ? "6 6" : undefined;
 
     return (
-        <div ref={containerRef} className={cn("relative w-full h-full overflow-visible")}>
+        <div ref={containerRef} 
+        className={cn(
+            "relative w-full h-full overflow-visible",
+            )}>
             <NodeResizer
                 isVisible={props.selected && draggingIdx == null}
                 minWidth={120}
                 minHeight={60}
-                handleStyle={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 2,
-                    border: "1px solid #7c3aed",
-                }}
+                onResize={() =>{}}
+                handleClassName="w-0 hidden"
+                lineClassName="opacity-40"
             />
             <svg ref={svgRef} className="absolute inset-0 w-full h-full overflow-visible"
                 viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
                 <polyline
                     points={(data.points ?? []).map((p) => `${p.x},${p.y}`).join(" ")}
                     fill="none"
-                    stroke={selected ? "#3b82f6" : stroke}
+                    stroke={stroke}
                     strokeWidth={strokeWidth}
                     vectorEffect="non-scaling-stroke"
-                    strokeDasharray={dash}
                 />
                 {selected && (data.points ?? []).map((pt, idx) => (
                     <circle

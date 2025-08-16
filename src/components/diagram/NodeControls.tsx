@@ -1,13 +1,12 @@
 "use client";
 
-import * as React from "react";
 import type { Node as RFNode } from "reactflow";
 import { X } from "lucide-react";
 import { type TailwindBgFamily, type TailwindBgShade } from "@/lib/utils";
-import { ColorSelector } from "@/components/diagram/ColorSelectorO";
 import { Button } from "@/components/ui/button";
-import { IconSelector } from "@/components/diagram/IconSelector";
-import { ArchNodeView } from "@/components/diagram/nodes/ArchNodeView";
+import { LineNodeControls } from "./LineNodeControls";
+import { BasicNodeControl } from "./BasicNodeControl";
+import { useEffect, useState } from "react";
 
 type Props = {
   selectedNode: RFNode | null;
@@ -18,22 +17,32 @@ type Props = {
 export function NodeControls({ selectedNode, onChange, onClose }: Props) {
 
   const data = (selectedNode?.data ?? {}) as Readonly<{ label?: string; description?: string; fillColor?: string; textColor?: string; borderColor?: string; iconKey?: string; nodeKind?: string; rotation?: number; width?: number; height?: number }>;
-  const [label, setLabel] = React.useState<string>(String(data.label ?? ""));
-  const [description, setDescription] = React.useState<string>(String(data.description ?? ""));
-  const [fillColor, setFillColor] = React.useState<string>(String(data.fillColor ?? "#ffffff"));
-  const [textColor, setTextColor] = React.useState<string>(String(data.textColor ?? "#111827"));
-  const [borderColor, setBorderColor] = React.useState<string>(String(data.borderColor ?? "border-slate-300"));
-  const [iconKey, setIconKey] = React.useState<string | undefined>(data.iconKey);
-  const [nodeKind, setNodeKind] = React.useState<string>(String(data.nodeKind ?? "rectangle"));
-  const [rotation, setRotation] = React.useState<number>(Number(data.rotation ?? 0));
-  const [width, setWidth] = React.useState<number>(Number(selectedNode?.width ?? data.width ?? 180));
-  const [height, setHeight] = React.useState<number>(Number(selectedNode?.height ?? data.height ?? 80));
+  const [label, setLabel] = useState<string>(String(data.label ?? ""));
+  const [description, setDescription] = useState<string>(String(data.description ?? ""));
+  const [fillColor, setFillColor] = useState<string>(String(data.fillColor ?? "#ffffff"));
+  const [textColor, setTextColor] = useState<string>(String(data.textColor ?? "#111827"));
+  const [borderColor, setBorderColor] = useState<string>(String(data.borderColor ?? "border-slate-300"));
+  const [iconKey, setIconKey] = useState<string | undefined>(data.iconKey);
+  const [nodeKind, setNodeKind] = useState<string>(String(data.nodeKind ?? "rectangle"));
+  const [rotation, setRotation] = useState<number>(Number(data.rotation ?? 0));
+  const [width, setWidth] = useState<number>(Number(selectedNode?.width ?? data.width ?? 180));
+  const [height, setHeight] = useState<number>(Number(selectedNode?.height ?? data.height ?? 80));
+
+  // For ArchLineNode: show only stroke color and stroke width
+  const isLineKind = selectedNode?.type === "archPolylineNode";
+  const isTemplateNode = Boolean(selectedNode?.data.templateId);
+  console.log("selectedNode", selectedNode);
+  const [lineStrokeColor, setLineStrokeColor] = useState<string>(() => {
+    const sc = String(((selectedNode?.data as unknown as { strokeColor?: string })?.strokeColor) ?? "");
+    return sc.startsWith("#") ? sc : "#334155"; // slate-700
+  });
+  const [lineStrokeWidth, setLineStrokeWidth] = useState<number>(Number(((selectedNode?.data as unknown as { strokeWidth?: number })?.strokeWidth ?? 2)));
 
   // Tailwind color selector state for fill color
-  const [fillFamily, setFillFamily] = React.useState<TailwindBgFamily>("blue");
-  const [fillShade, setFillShade] = React.useState<TailwindBgShade>(500);
+  const [fillFamily, setFillFamily] = useState<TailwindBgFamily>("blue");
+  const [fillShade, setFillShade] = useState<TailwindBgShade>(500);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setLabel(String(data.label ?? ""));
     setDescription(String(data.description ?? ""));
     setFillColor(String(data.fillColor ?? "#ffffff"));
@@ -44,6 +53,10 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
     setWidth(Number(selectedNode?.width ?? data.width ?? 180));
     setHeight(Number(selectedNode?.height ?? data.height ?? 80));
     setBorderColor(String(data.borderColor ?? "border-slate-300"));
+    // Init polyline controls from node.data
+    const sc = String(((selectedNode?.data as unknown as { strokeColor?: string })?.strokeColor) ?? "");
+    setLineStrokeColor(sc.startsWith("#") ? sc : "#334155");
+    setLineStrokeWidth(Number(((selectedNode?.data as unknown as { strokeWidth?: number })?.strokeWidth ?? 2)));
     // Initialize tailwind selector state from fillColor when possible
     const parsed = String(data.fillColor ?? "").match(/^bg-([a-z]+)-(300|500|700)$/);
     if (parsed) {
@@ -81,6 +94,16 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
     onChange(updated);
   };
 
+  const commitLine = (partial?: Partial<{ strokeColor: string; strokeWidth: number }>) => {
+    const nextStrokeColor = partial?.strokeColor ?? lineStrokeColor;
+    const nextStrokeWidth = Number(partial?.strokeWidth ?? lineStrokeWidth) || 2;
+    const updated: RFNode = {
+      ...selectedNode,
+      data: { ...(selectedNode?.data ?? {}), strokeColor: nextStrokeColor, strokeWidth: nextStrokeWidth },
+    } as RFNode;
+    onChange(updated);
+  };
+
   if (!selectedNode) return null;
 
   return (
@@ -92,126 +115,40 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
         </Button>
       </div>
       <div className="p-3 space-y-3 text-sm">
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1">Label</label>
-          <input
-            className="w-full rounded border px-2 py-1 bg-transparent"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            onBlur={() => commit()}
+        {isLineKind && (
+          <LineNodeControls
+            lineStrokeColor={lineStrokeColor}
+            lineStrokeWidth={lineStrokeWidth}
+            onClose={onClose}
+            commitLine={commitLine}
+            setLineStrokeColor={setLineStrokeColor}
+            setLineStrokeWidth={setLineStrokeWidth}
           />
-        </div>
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1">Description</label>
-          <textarea
-            className="w-full rounded border px-2 py-1 bg-transparent resize-none"
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={() => commit()}
+        )}
+
+        {!isLineKind && !isTemplateNode && (
+          <BasicNodeControl
+            label={label}
+            setLabel={setLabel}
+            description={description}
+            setDescription={setDescription}
+            fillColor={fillColor}
+            setFillColor={setFillColor}
+            textColor={textColor}
+            setTextColor={setTextColor}
+            borderColor={borderColor}
+            setBorderColor={setBorderColor}
+            iconKey={iconKey}
+            nodeKind={nodeKind}
+            rotation={rotation}
+            width={width}
+            height={height}
+            setWidth={setWidth}
+            setHeight={setHeight}
+            commit={commit}
+            onClose={onClose}
           />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <ColorSelector
-              label="Fill color"
-              value={fillColor}
-              onChange={(next) => { setFillColor(next); commit({ fillColor: next }); }}
-            />
-          </div>
-          <div>
-            <ColorSelector
-              label="Text color"
-              value={textColor}
-              onChange={(next) => { setTextColor(next); commit({ textColor: next }); }}
-            />
-          </div>
-        </div>
-        <div>
-          <IconSelector
-            label="Icon"
-            value={iconKey}
-            onChange={(next) => { setIconKey(next); commit({ iconKey: next }); }}
-          />
-        </div>
-        <div>
-          <ColorSelector
-            label="Border color"
-            mode="border"
-            value={borderColor}
-            onChange={(next) => { setBorderColor(next); commit({ borderColor: next }); }}
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1">Preview</label>
-          <div className="border rounded-md p-2 grid place-items-center">
-            <ArchNodeView
-              label={label || "Node"}
-              nodeKind={nodeKind}
-              fillColor={fillColor}
-              textColor={textColor}
-              borderColor={borderColor}
-              iconKey={iconKey}
-              rotation={rotation}
-              width={Math.max(120, Math.min(320, width))}
-              height={Math.max(60, Math.min(240, height))}
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Width</label>
-            <input
-              type="number"
-              min={nodeKind === "line" ? 20 : 40}
-              className="w-full rounded border px-2 py-1 bg-transparent"
-              value={width}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                setWidth(val);
-                if (nodeKind === "square") setHeight(val);
-              }}
-              onBlur={() => commit()}
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Height</label>
-            <input
-              type="number"
-              min={nodeKind === "line" ? 2 : 24}
-              className="w-full rounded border px-2 py-1 bg-transparent"
-              value={height}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                setHeight(val);
-                if (nodeKind === "square") setWidth(val);
-              }}
-              onBlur={() => commit()}
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">Type</label>
-            <select
-              className="w-full rounded border px-2 py-1 bg-transparent"
-              value={nodeKind}
-              onChange={(e) => { setNodeKind(e.target.value); commit({ nodeKind: e.target.value }); }}
-            >
-              <option value="rectangle">Rectangle</option>
-              <option value="ellipse">Ellipse</option>
-              <option value="text">Text</option>
-              <option value="square">Square</option>
-              <option value="line">Line</option>
-              <option value="container">Container</option>
-            </select>
-          </div>
-          <div />
-        </div>
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
-          <Button size="sm" onClick={() => commit()}>Apply</Button>
-        </div>
+        )}
       </div>
     </div>
   );

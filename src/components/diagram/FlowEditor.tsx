@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import ReactFlow, {
   addEdge as rfAddEdge,
   Background,
@@ -25,8 +24,6 @@ import type { AppStateSnapshot, Diagram, DiagramEdge, DiagramNode, RFArchEdgeDat
 import { Button } from "@/components/ui/button";
 import { ArchNode } from "@/components/diagram/nodes/ArchNode";
 import { ArchTextNode } from "@/components/diagram/nodes/ArchTextNode";
-import { ArchSquareNode } from "@/components/diagram/nodes/ArchSquareNode";
-import { ArchLineNode } from "@/components/diagram/nodes/ArchLineNode";
 import { ArchPolylineNode } from "@/components/diagram/nodes/ArchPolylineNode";
 import { NodeControls } from "./NodeControls";
 import { EdgeControls } from "@/components/diagram/edges/EdgeControls";
@@ -35,9 +32,10 @@ import { FocusIntentHandler } from "./FocusIntentHandler";
 import { ArchEdge } from "@/components/diagram/edges/ArchEdge";
 import { CreateNodeTemplateDialog } from "./CreateNodeTemplateDialog";
 import { TemplatesManagerDialog } from "./TemplatesManagerDialog";
-import { getIconByKey } from "@/lib/iconRegistry";
 import { cn } from "@/lib/utils";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AddVirtualDialog } from "./AddVirtualDialog";
 
 
 function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: string) => void }): RFNode {
@@ -65,7 +63,7 @@ function toRFNode(n: DiagramNode, opts?: { onLabelCommit?: (id: string, next: st
     id: n.id,
     position: n.position,
     data: baseData,
-    type: isText ? "archTextNode" : isSquare ? "archSquareNode" : isLine ? "archLineNode" : "archNode",
+    type: isText ? "archTextNode" : isLine ? "archLineNode" : "archNode",
     style: isText ? {} : { width: n.width ?? 180, height: n.height ?? 80 },
   } satisfies RFNode;
 }
@@ -103,7 +101,7 @@ export function FlowEditor() {
 
   const isNestedView = drillStack.length > 0;
 
-  const getNestedDiagram = React.useCallback((sourceNodes: DiagramNode[], stack: string[]): SubDiagram => {
+  const getNestedDiagram = useCallback((sourceNodes: DiagramNode[], stack: string[]): SubDiagram => {
     if (stack.length === 0) return { nodes: sourceNodes, edges: diagram?.edges ?? [], lines: diagram?.lines ?? [] };
     const [head, ...rest] = stack;
     const found = sourceNodes.find((n) => n.id === head);
@@ -112,14 +110,14 @@ export function FlowEditor() {
     return getNestedDiagram(found.diagram?.nodes ?? [], rest);
   }, [diagram?.edges]);
 
-  const currentDomain = React.useMemo(() => {
+  const currentDomain = useMemo(() => {
     if (!diagram) return { nodes: [] as DiagramNode[], edges: [] as DiagramEdge[], lines: [] as DiagramPolyline[] };
     if (drillStack.length === 0) return { nodes: diagram.nodes, edges: diagram.edges, lines: diagram.lines ?? [] };
     return getNestedDiagram(diagram.nodes, drillStack);
   }, [diagram, drillStack, getNestedDiagram]);
 
   // Converter for stored polyline to RF node (includes onUpdatePoints)
-  const polylineToRFNode = (id: string, absPoints: { x: number; y: number }[], style?: { strokeColor?: string; strokeWidth?: number; dashed?: boolean }): RFNode => {
+  const polylineToRFNode = (id: string, absPoints: { x: number; y: number }[], style?: { strokeColor?: string; strokeWidth?: number }): RFNode => {
     const minX = Math.min(...absPoints.map((p) => p.x));
     const minY = Math.min(...absPoints.map((p) => p.y));
     const maxX = Math.max(...absPoints.map((p) => p.x));
@@ -137,7 +135,6 @@ export function FlowEditor() {
         points: rel,
         strokeColor: style?.strokeColor ?? '#4b5563',
         strokeWidth: style?.strokeWidth ?? 2,
-        dashed: style?.dashed,
         padding: PAD,
         onUpdatePoints: (lid: string, nextRel: { x: number; y: number }[]) => {
           setNodes((prev) => prev.map((n) => n.id === `poly:${lid}` ? { ...n, data: { ...(n.data as object), points: nextRel } } as RFNode : n));
@@ -147,14 +144,14 @@ export function FlowEditor() {
     } as unknown as RFNode;
   };
 
-  const initialNodes = React.useMemo(() => {
+  const initialNodes = useMemo(() => {
     const base = (currentDomain.nodes ?? []).flatMap((n) => {
       if ((n as DiagramNode).type === 'polyline') {
         const pdata = (n.data as any)?.polyline as { points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean } | undefined;
         const pts = Array.isArray(pdata?.points) ? (pdata?.points as { x: number; y: number }[]) : [];
         if (pts.length >= 2) {
           const abs = pts.map((p) => ({ x: p.x + n.position.x, y: p.y + n.position.y }));
-          return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth, dashed: pdata?.dashed })];
+          return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth })];
         }
         return [];
       }
@@ -167,25 +164,25 @@ export function FlowEditor() {
     const polyNodeIds = new Set((currentDomain.nodes ?? []).filter((n) => n.type === 'polyline').map((n) => n.id));
     const legacy = (currentDomain.lines ?? [])
       .filter((l) => !polyNodeIds.has(l.id))
-      .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth, dashed: l.dashed }));
+      .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth }));
     return [...base, ...legacy];
   },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  [diagram?.id, drillStack]);
-  const initialEdges = React.useMemo(() => (currentDomain.edges ?? []).map(toRFEdge), [currentDomain.edges]);
+    [diagram?.id, drillStack]);
+  const initialEdges = useMemo(() => (currentDomain.edges ?? []).map(toRFEdge), [currentDomain.edges]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const [selectedEdge, setSelectedEdge] = React.useState<RFEdge | null>(null);
-  const [isDrawingLine, setIsDrawingLine] = React.useState<boolean>(false);
-  const [draftPoints, setDraftPoints] = React.useState<DiagramPolylinePoint[]>([]);
-  const [viewport, setViewport] = React.useState<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 });
-  const viewportRef = React.useRef<{ x: number; y: number; zoom: number }>(viewport);
-  React.useEffect(() => { viewportRef.current = viewport; }, [viewport]);
-  const viewportRafRef = React.useRef<number | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
-  const connectFromHandle = React.useRef<"source" | "target" | null>(null);
-  const getSpawnPosition = React.useCallback((nodeWidth: number, nodeHeight: number) => {
+  const [selectedEdge, setSelectedEdge] = useState<RFEdge | null>(null);
+  const [isDrawingLine, setIsDrawingLine] = useState<boolean>(false);
+  const [draftPoints, setDraftPoints] = useState<DiagramPolylinePoint[]>([]);
+  const [viewport, setViewport] = useState<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 });
+  const viewportRef = useRef<{ x: number; y: number; zoom: number }>(viewport);
+  useEffect(() => { viewportRef.current = viewport; }, [viewport]);
+  const viewportRafRef = useRef<number | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const connectFromHandle = useRef<"source" | "target" | null>(null);
+  const getSpawnPosition = useCallback((nodeWidth: number, nodeHeight: number) => {
     try {
       const container = document.querySelector('.react-flow') as HTMLElement | null;
       const rect = container?.getBoundingClientRect();
@@ -204,7 +201,7 @@ export function FlowEditor() {
     }
   }, [rf]);
   // Spawn node from template when request is present
-  React.useEffect(() => {
+  useEffect(() => {
     if (!pendingSpawn) return;
     const tpl = nodeTemplates[pendingSpawn.templateId];
     if (!tpl || !diagram) {
@@ -246,14 +243,14 @@ export function FlowEditor() {
     setPendingSpawn(null);
   }, [pendingSpawn, nodeTemplates, diagram, drillStack.length, addNode, setNodes, setPendingSpawn, getSpawnPosition]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const base = (currentDomain.nodes ?? []).flatMap((n) => {
       if ((n as DiagramNode).type === 'polyline') {
         const pdata = (n.data as any)?.polyline as { points?: { x: number; y: number }[]; strokeColor?: string; strokeWidth?: number; dashed?: boolean } | undefined;
         const pts = Array.isArray(pdata?.points) ? (pdata?.points as { x: number; y: number }[]) : [];
         if (pts.length >= 2) {
           const abs = pts.map((p) => ({ x: p.x + n.position.x, y: p.y + n.position.y }));
-          return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth, dashed: pdata?.dashed })];
+          return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth })];
         }
         return [];
       }
@@ -264,13 +261,13 @@ export function FlowEditor() {
     const polyNodeIds = new Set((currentDomain.nodes ?? []).filter((n) => n.type === 'polyline').map((n) => n.id));
     const legacy = (currentDomain.lines ?? [])
       .filter((l) => !polyNodeIds.has(l.id))
-      .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth, dashed: l.dashed }));
+      .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth }));
     setNodes([...base, ...legacy]);
     setEdges((currentDomain.edges ?? []).map(toRFEdge));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diagram?.id, drillStack]);
 
-  const onConnect: OnConnect = React.useCallback((connection: Connection) => {
+  const onConnect: OnConnect = useCallback((connection: Connection) => {
     setEdges((eds) =>
       rfAddEdge(
         {
@@ -296,25 +293,25 @@ export function FlowEditor() {
     connectFromHandle.current = null;
   }, [setEdges]);
 
-  const onConnectStart: OnConnectStart = React.useCallback((_, params) => {
+  const onConnectStart: OnConnectStart = useCallback((_, params) => {
     connectFromHandle.current = params.handleType ?? null;
   }, []);
 
-  const onConnectEnd: OnConnectEnd = React.useCallback(() => {
+  const onConnectEnd: OnConnectEnd = useCallback(() => {
     // no-op; reset happens in onConnect
   }, []);
 
   // Refs to persist latest graph state on unmount/navigation
-  const nodesRef = React.useRef<RFNode[]>(nodes);
-  const edgesRef = React.useRef<RFEdge[]>(edges);
-  const diagramIdRef = React.useRef<string | undefined>(diagram?.id);
-  const drillStackRef = React.useRef<string[]>(drillStack);
-  React.useEffect(() => { nodesRef.current = nodes; }, [nodes]);
-  React.useEffect(() => { edgesRef.current = edges; }, [edges]);
-  React.useEffect(() => { diagramIdRef.current = diagram?.id; }, [diagram?.id]);
-  React.useEffect(() => { drillStackRef.current = drillStack; }, [drillStack]);
+  const nodesRef = useRef<RFNode[]>(nodes);
+  const edgesRef = useRef<RFEdge[]>(edges);
+  const diagramIdRef = useRef<string | undefined>(diagram?.id);
+  const drillStackRef = useRef<string[]>(drillStack);
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  useEffect(() => { edgesRef.current = edges; }, [edges]);
+  useEffect(() => { diagramIdRef.current = diagram?.id; }, [diagram?.id]);
+  useEffect(() => { drillStackRef.current = drillStack; }, [drillStack]);
 
-  const syncToStore = React.useCallback(() => {
+  const syncToStore = useCallback(() => {
     const id = diagramIdRef.current;
     if (!id) return;
     const currentStore = useAppStore.getState();
@@ -465,8 +462,8 @@ export function FlowEditor() {
   }, [setNodesEdges]);
 
   // Debounced autosave when nodes/edges change
-  const saveTimer = React.useRef<number | null>(null);
-  React.useEffect(() => {
+  const saveTimer = useRef<number | null>(null);
+  useEffect(() => {
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
       syncToStore();
@@ -477,7 +474,7 @@ export function FlowEditor() {
   }, [nodes, edges, syncToStore]);
 
   // Persist on unmount (e.g., when navigating via breadcrumb)
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
       syncToStore();
@@ -527,7 +524,7 @@ export function FlowEditor() {
     // persistence handled by autosave
   };
 
-  const beginLineDrawing = React.useCallback(() => {
+  const beginLineDrawing = useCallback(() => {
     setIsDrawingLine(true);
     setDraftPoints([]);
   }, []);
@@ -558,49 +555,11 @@ export function FlowEditor() {
 
   // --- Virtual node creation dialog state ---
   type FlattenedNode = { nodeId: string; label: string; diagramId: string; pathIds: string[]; pathLabels: string[]; nodeType: DiagramNode["type"] };
-  const [isVirtualDialogOpen, setIsVirtualDialogOpen] = React.useState<boolean>(false);
-  const [virtualSearch, setVirtualSearch] = React.useState<string>("");
-  const [virtualSelection, setVirtualSelection] = React.useState<FlattenedNode | null>(null);
+  const [isVirtualDialogOpen, setIsVirtualDialogOpen] = useState<boolean>(false);
 
-  // --- Global search moved to component ---
 
-  const flattenAllNodes = React.useCallback((): FlattenedNode[] => {
-    const results: FlattenedNode[] = [];
-    const diagramsEntries = Object.entries(diagrams);
-    for (const [dId, d] of diagramsEntries) {
-      const stack: Array<{ node: DiagramNode; pathIds: string[]; pathLabels: string[] }> = (d.nodes ?? []).map((n) => ({ node: n, pathIds: [], pathLabels: [] }));
-      while (stack.length > 0) {
-        const { node, pathIds, pathLabels } = stack.pop()!;
-        results.push({ nodeId: node.id, label: node.data.label, diagramId: dId, pathIds: [...pathIds, node.id], pathLabels: [...pathLabels, node.data.label], nodeType: node.type });
-        if (node.diagram?.nodes?.length) {
-          for (const child of node.diagram.nodes) {
-            stack.push({ node: child, pathIds: [...pathIds, node.id], pathLabels: [...pathLabels, node.data.label] });
-          }
-        }
-      }
-    }
-    return results;
-  }, [diagrams]);
-
-  const allFlattened = React.useMemo(() => flattenAllNodes(), [flattenAllNodes]);
-  const currentDomainNodeIds = React.useMemo(() => new Set((currentDomain.nodes ?? []).map((n) => n.id)), [currentDomain.nodes]);
-  const filteredFlattened = React.useMemo(() => {
-    const q = virtualSearch.trim().toLowerCase();
-    const base = q ? allFlattened.filter((f) => f.label.toLowerCase().includes(q)) : allFlattened;
-    // Filter out nodes that are already in the current diagram view
-    return base.filter((f) => !currentDomainNodeIds.has(f.nodeId)).slice(0, 200);
-  }, [allFlattened, virtualSearch, currentDomainNodeIds]);
-
-  // Global search handled by GlobalSearch component
-
-  const handleAddVirtualNode = () => {
-    setIsVirtualDialogOpen(true);
-    setVirtualSelection(null);
-    setVirtualSearch("");
-  };
-
-  const confirmAddVirtualNode = () => {
-    if (!diagram || !virtualSelection) return;
+  const handleAddVirtualNode = (virtualSelection: FlattenedNode | null) => {
+    if (!diagram || !virtualSelection || !virtualSelection) return;
     const position = { x: Math.random() * 300 + 100, y: Math.random() * 200 + 100 };
     if (drillStack.length === 0) {
       const id = addNode(diagram.id, {
@@ -624,11 +583,10 @@ export function FlowEditor() {
       // persistence handled by autosave
     }
     setIsVirtualDialogOpen(false);
-    setVirtualSelection(null);
   };
 
   // Find path to a node across diagrams; returns {diagramId, pathIds}
-  const findNodeAcrossDiagrams = React.useCallback((targetId: string | undefined): { diagramId: string; pathIds: string[] } | null => {
+  const findNodeAcrossDiagrams = useCallback((targetId: string | undefined): { diagramId: string; pathIds: string[] } | null => {
     if (!targetId) return null;
     for (const [dId, d] of Object.entries(diagrams)) {
       const stack: Array<{ node: DiagramNode; path: string[] }> = (d.nodes ?? []).map((n) => ({ node: n, path: [n.id] }));
@@ -649,7 +607,7 @@ export function FlowEditor() {
     ensureSyncedThen(() => popDrill());
   };
 
-  const onExport = React.useCallback(() => {
+  const onExport = useCallback(() => {
     // Export full application snapshot: diagrams + rootId + templates
     const snapshot: AppStateSnapshot = useAppStore.getState().exportSnapshot();
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
@@ -661,16 +619,16 @@ export function FlowEditor() {
     URL.revokeObjectURL(url);
   }, [diagram?.name]);
 
-  const nodeTypes = React.useMemo(() => ({ archNode: ArchNode, archTextNode: ArchTextNode, archSquareNode: ArchSquareNode, archLineNode: ArchLineNode, archPolylineNode: ArchPolylineNode }), []);
-
-  const ensureSyncedThen = React.useCallback((after: () => void) => {
+  const nodeTypes = useMemo(() => ({ archNode: ArchNode, archTextNode: ArchTextNode, archPolylineNode: ArchPolylineNode }), []);
+  const edgeTypes = useMemo(() => ({ arch: ArchEdge }), []);
+  const ensureSyncedThen = useCallback((after: () => void) => {
     // Persist current visual state to store before navigation
     syncToStore();
     // Give store a microtask to update
     setTimeout(after, 0);
   }, [syncToStore]);
 
-  const onNodeDoubleClick = React.useCallback((_: React.MouseEvent, node: RFNode) => {
+  const onNodeDoubleClick = useCallback((_: MouseEvent, node: RFNode) => {
     const nodeData = node.data as Partial<RFArchNodeData>;
     const isVirtual = nodeData.nodeKind === "virtual" || Boolean(nodeData.virtualOf);
     if (isVirtual) {
@@ -687,7 +645,7 @@ export function FlowEditor() {
     ensureSyncedThen(() => pushDrill(node.id));
   }, [ensureSyncedThen, findNodeAcrossDiagrams, currentId, navigateTo, pushDrill, setDrillStack]);
 
-  const onNodeClick = React.useCallback((_: React.MouseEvent, node: RFNode) => {
+  const onNodeClick = useCallback((_: MouseEvent, node: RFNode) => {
     const nodeData = node.data as Partial<RFArchNodeData>;
     const isVirtual = nodeData.nodeKind === "virtual" || Boolean(nodeData.virtualOf);
     if (!isVirtual) return;
@@ -701,11 +659,11 @@ export function FlowEditor() {
 
   // handleGoToSearchItem now lives inside GlobalSearch
 
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState<boolean>(false);
-  const [isTemplatesManagerOpen, setIsTemplatesManagerOpen] = React.useState<boolean>(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState<boolean>(false);
+  const [isTemplatesManagerOpen, setIsTemplatesManagerOpen] = useState<boolean>(false);
 
   // Handle global pending commands (from sidebar Add menu)
-  React.useEffect(() => {
+  useEffect(() => {
     if (!pendingCommand) return;
     const t = pendingCommand.type as string;
     if (t === "addText") onAddTextNode();
@@ -723,7 +681,7 @@ export function FlowEditor() {
           const pts = Array.isArray(pdata?.points) ? (pdata?.points as { x: number; y: number }[]) : [];
           if (pts.length >= 2) {
             const abs = pts.map((p) => ({ x: p.x + n.position.x, y: p.y + n.position.y }));
-            return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth, dashed: pdata?.dashed })];
+            return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth })];
           }
           return [];
         }
@@ -734,7 +692,7 @@ export function FlowEditor() {
       const polyNodeIds = new Set((currentDomain.nodes ?? []).filter((n) => n.type === 'polyline').map((n) => n.id));
       const legacy = (currentDomain.lines ?? [])
         .filter((l) => !polyNodeIds.has(l.id))
-        .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth, dashed: l.dashed }));
+        .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth }));
       setNodes([...base, ...legacy]);
       setEdges((currentDomain.edges ?? []).map(toRFEdge));
     }
@@ -768,7 +726,7 @@ export function FlowEditor() {
               const pts = Array.isArray(pdata?.points) ? (pdata?.points as { x: number; y: number }[]) : [];
               if (pts.length >= 2) {
                 const abs = pts.map((p) => ({ x: p.x + n.position.x, y: p.y + n.position.y }));
-                return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth, dashed: pdata?.dashed })];
+                return [polylineToRFNode(n.id, abs, { strokeColor: pdata?.strokeColor, strokeWidth: pdata?.strokeWidth })];
               }
               return [];
             }
@@ -777,7 +735,7 @@ export function FlowEditor() {
           const polyNodeIds = new Set((domain.nodes ?? []).filter((n) => n.type === 'polyline').map((n) => n.id));
           const legacy = (domain.lines ?? [])
             .filter((l) => !polyNodeIds.has(l.id))
-            .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth, dashed: l.dashed }));
+            .map((l) => polylineToRFNode(l.id, l.points, { strokeColor: l.strokeColor, strokeWidth: l.strokeWidth }));
           setNodes([...base, ...legacy]);
           setEdges((domain.edges ?? []).map(toRFEdge));
         }, 0);
@@ -795,7 +753,7 @@ export function FlowEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingCommand]);
 
-  const screenToFlow = React.useCallback((x: number, y: number) => {
+  const screenToFlow = useCallback((x: number, y: number) => {
     const hasConverter = typeof (rf as unknown as { screenToFlowPosition?: (p: { x: number; y: number }) => { x: number; y: number } }).screenToFlowPosition === 'function';
     if (hasConverter) {
       return (rf as unknown as { screenToFlowPosition: (p: { x: number; y: number }) => { x: number; y: number } }).screenToFlowPosition({ x, y });
@@ -804,7 +762,7 @@ export function FlowEditor() {
     return { x: (x - vp.x) / vp.zoom, y: (y - vp.y) / vp.zoom };
   }, [rf]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     try {
       const vp = (rf as unknown as { getViewport: () => { x: number; y: number; zoom: number } }).getViewport();
       setViewport(vp);
@@ -815,7 +773,7 @@ export function FlowEditor() {
   }, [rf]);
 
   // clear dragging on mouse up anywhere
-  React.useEffect(() => {
+  useEffect(() => {
     const up = () => {
       // setDraggingPoint(null); // Removed as per new logic
       // setDraggingLine(null); // Removed as per new logic
@@ -824,7 +782,7 @@ export function FlowEditor() {
     return () => window.removeEventListener('mouseup', up);
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!isDrawingLine) return;
       if (e.key === 'Escape') {
@@ -848,7 +806,7 @@ export function FlowEditor() {
     return () => window.removeEventListener('keydown', onKey);
   }, [isDrawingLine, draftPoints]);
 
-  const createPolylineRFNode = React.useCallback((id: string, absPoints: { x: number; y: number }[], style?: { strokeColor?: string; strokeWidth?: number; dashed?: boolean }): RFNode => {
+  const createPolylineRFNode = useCallback((id: string, absPoints: { x: number; y: number }[], style?: { strokeColor?: string; strokeWidth?: number }): RFNode => {
     const minX = Math.min(...absPoints.map((p) => p.x));
     const minY = Math.min(...absPoints.map((p) => p.y));
     const maxX = Math.max(...absPoints.map((p) => p.x));
@@ -867,7 +825,6 @@ export function FlowEditor() {
         points: rel,
         strokeColor: style?.strokeColor ?? '#4b5563',
         strokeWidth: style?.strokeWidth ?? 2,
-        dashed: style?.dashed,
         padding: PAD,
         onUpdatePoints: (lid: string, nextRel: RelPoint[]) => {
           setNodes((prev) => prev.map((n) => n.id === `poly:${lid}` ? { ...n, data: { ...(n.data as object), points: nextRel } } as RFNode : n));
@@ -896,7 +853,7 @@ export function FlowEditor() {
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
-          edgeTypes={{ arch: ArchEdge }}
+          edgeTypes={edgeTypes}
           nodesConnectable
           nodesDraggable={!isDrawingLine}
           onSelectionChange={(sel) => {
@@ -1011,41 +968,48 @@ export function FlowEditor() {
         />
       </div>
       {isVirtualDialogOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40">
-          <div className="w-[600px] max-w-[90vw] rounded-md border bg-background shadow-lg">
-            <div className="border-b px-3 py-2 text-sm font-medium">Add virtual node</div>
-            <div className="p-3 space-y-3">
-              <input
-                className="w-full rounded border px-2 py-1 bg-transparent"
-                placeholder="Search nodes by label..."
-                value={virtualSearch}
-                onChange={(e) => setVirtualSearch(e.target.value)}
-              />
-              <div className="max-h-64 overflow-auto border rounded">
-                <ul>
-                  {filteredFlattened.map((item) => {
-                    const isSelected = virtualSelection?.nodeId === item.nodeId && virtualSelection.diagramId === item.diagramId;
-                    return (
-                      <li key={`${item.diagramId}:${item.nodeId}`}>
-                        <button
-                          className={`w-full text-left px-3 py-2 text-sm ${isSelected ? "bg-accent" : "hover:bg-muted"}`}
-                          onClick={() => setVirtualSelection(item)}
-                        >
-                          <div className="font-medium truncate">{item.label}</div>
-                          <div className="text-xs text-muted-foreground truncate">{item.pathLabels.join(" › ")} {item.pathLabels.length ? "(path)" : ""}</div>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button size="sm" variant="outline" onClick={() => setIsVirtualDialogOpen(false)}>Cancel</Button>
-                <Button size="sm" disabled={!virtualSelection} onClick={confirmAddVirtualNode}>Add</Button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AddVirtualDialog
+          isOpen={isVirtualDialogOpen}
+          onClose={() => setIsVirtualDialogOpen(false)}
+          onAdd={handleAddVirtualNode}
+          diagrams={diagrams}
+          currentDomain={currentDomain}
+        />
+        // <div className="fixed inset-0 z-50 grid place-items-center bg-black/40">
+        //   <div className="w-[600px] max-w-[90vw] rounded-md border bg-background shadow-lg">
+        //     <div className="border-b px-3 py-2 text-sm font-medium">Add virtual node</div>
+        //     <div className="p-3 space-y-3">
+        //       <input
+        //         className="w-full rounded border px-2 py-1 bg-transparent"
+        //         placeholder="Search nodes by label..."
+        //         value={virtualSearch}
+        //         onChange={(e) => setVirtualSearch(e.target.value)}
+        //       />
+        //       <div className="max-h-64 overflow-auto border rounded">
+        //         <ul>
+        //           {filteredFlattened.map((item) => {
+        //             const isSelected = virtualSelection?.nodeId === item.nodeId && virtualSelection.diagramId === item.diagramId;
+        //             return (
+        //               <li key={`${item.diagramId}:${item.nodeId}`}>
+        //                 <button
+        //                   className={`w-full text-left px-3 py-2 text-sm ${isSelected ? "bg-accent" : "hover:bg-muted"}`}
+        //                   onClick={() => setVirtualSelection(item)}
+        //                 >
+        //                   <div className="font-medium truncate">{item.label}</div>
+        //                   <div className="text-xs text-muted-foreground truncate">{item.pathLabels.join(" › ")} {item.pathLabels.length ? "(path)" : ""}</div>
+        //                 </button>
+        //               </li>
+        //             );
+        //           })}
+        //         </ul>
+        //       </div>
+        //       <div className="flex justify-end gap-2">
+        //         <Button size="sm" variant="outline" onClick={() => setIsVirtualDialogOpen(false)}>Cancel</Button>
+        //         <Button size="sm" disabled={!virtualSelection} onClick={confirmAddVirtualNode}>Add</Button>
+        //       </div>
+        //     </div>
+        //   </div>
+        // </div>
       )}
     </div>
   );

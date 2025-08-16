@@ -38,14 +38,10 @@ export const TAILWIND_MAIN_COLORS: TailwindBgFamily[] = [
   "white",
   "black",
   "slate",
-  "stone",
   "red",
   "orange",
-  "yellow",
   "green",
   "blue",
-  "violet",
-  "pink",
 ] as const;
 
 export const TAILWIND_TEXT_COLORS: TailwindBgFamily[] = [

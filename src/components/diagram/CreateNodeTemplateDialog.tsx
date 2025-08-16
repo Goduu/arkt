@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { IconSelector } from "@/components/diagram/IconSelector";
-import { ColorSelector } from "@/components/diagram/ColorSelectorO";
+import { ColorSelector } from "@/components/diagram/ColorSelector";
 import { useAppStore } from "@/lib/store";
 import type { DiagramNode } from "@/lib/types";
 import { ArchNodeView } from "@/components/diagram/nodes/ArchNodeView";
@@ -89,12 +89,12 @@ export function CreateNodeTemplateDialog({ isOpen, onClose, mode = "create", tem
                 <option value="container">Container</option>
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex gap-2 flex-wrap">
               <ColorSelector label="Fill color" value={fillColor} onChange={setFillColor} />
-              <ColorSelector label="Text color" mode="text" value={textColor} onChange={setTextColor} />
+              <ColorSelector label="Text color" value={textColor} onChange={setTextColor} />
             </div>
             <IconSelector label="Icon" value={iconKey} onChange={setIconKey} />
-            <ColorSelector label="Border color" mode="border" value={borderColor} onChange={setBorderColor} />
+            <ColorSelector label="Border color" value={borderColor} onChange={setBorderColor} />
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Width</label>

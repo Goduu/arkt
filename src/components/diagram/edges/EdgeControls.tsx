@@ -11,6 +11,7 @@ import { StrokeWidth } from "./StrokeWidth";
 import { ColorSelector } from "../ColorSelector";
 import { StrokeType } from "./StrokeType";
 import { EdgeMarker } from "./EdgeMarker";
+import { FontSizeSelector } from "./FontSizeSelector";
 
 
 type Props = {
@@ -108,7 +109,7 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
     <div className="fixed top-16 right-4 w-80 max-h-[80vh] overflow-auto bg-background border shadow-lg rounded-md">
       <div className="px-3 py-2 border-b text-sm font-medium">Edge options</div>
       <div className="p-3 space-y-3 text-sm">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <StrokeTypeSelector selectedStrokeType={shape} setStrokeType={setShape} commit={commit} />
           <StrokeWidth commit={commit} selectedWidth={strokeWidth} setStrokeWidth={setStrokeWidth} />
           <EdgeMarker
@@ -119,26 +120,22 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
               commitMarkers(dir);
             }}
           />
-        </div>
-        <StrokeType value={[dashed ? "dashed" : null, animated ? "animated" : null].filter((v): v is string => typeof v === "string")}
-          onChange={(values: string[]) => {
-            setDashed(values.includes("dashed"))
-            setAnimated(values.includes("animated"))
-            commit({ dashed: values.includes("dashed"), animated: values.includes("animated") })
-          }} />
+          <StrokeType value={[dashed ? "dashed" : null, animated ? "animated" : null].filter((v): v is string => typeof v === "string")}
+            onChange={(values: string[]) => {
+              setDashed(values.includes("dashed"))
+              setAnimated(values.includes("animated"))
+              commit({ dashed: values.includes("dashed"), animated: values.includes("animated") })
+            }} />
 
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Stroke color</label>
             <ColorSelector
+              label="Stroke color"
               value={strokeColor}
               onChange={(color) => { setStrokeColor(color); commit({ strokeColor: color }); }}
             />
           </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={animated} onChange={(e) => { setAnimated(e.target.checked); commit({ animated: e.target.checked }); }} /> animated</label>
         </div>
 
         <div>
@@ -151,18 +148,23 @@ export function EdgeControls({ selectedEdge, onChange }: Props) {
             placeholder="Double-click edge to edit inline"
           />
         </div>
-        <div className="grid grid-cols-3 gap-3 items-end">
+        <div className="flex gap-2 flex-wrap">
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Font size</label>
-            <input type="number" min={8} max={32} className="w-full rounded border px-2 py-1 bg-transparent" value={fontSize} onChange={(e) => { const v = Number(e.target.value); setFontSize(v); commit({ fontSize: v }); }} />
+            <FontSizeSelector selectedFontSize={fontSize} setFontSize={setFontSize} commit={commit} />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Text color</label>
-            <input type="color" className="w-full h-8 rounded border" value={labelColor} onChange={(e) => { setLabelColor(e.target.value); commit({ labelColor: e.target.value }); }} />
+            <ColorSelector
+              label="Text color"
+              value={labelColor}
+              onChange={(color) => { setLabelColor(color); commit({ labelColor: color }); }}
+            />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">Background</label>
-            <input type="color" className="w-full h-8 rounded border" value={labelBackground} onChange={(e) => { setLabelBackground(e.target.value); commit({ labelBackground: e.target.value }); }} />
+            <ColorSelector
+              label="Background"
+              value={labelBackground}
+              onChange={(color) => { setLabelBackground(color); commit({ labelBackground: color }); }}
+            />
           </div>
         </div>
 

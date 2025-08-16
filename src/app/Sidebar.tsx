@@ -30,6 +30,8 @@ import {
     PlusCircle,
     Text,
     Type,
+    LineChart,
+    LineSquiggle,
 } from "lucide-react"
 
 export function AppSidebar() {
@@ -95,14 +97,8 @@ export function AppSidebar() {
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
                             <SidebarMenuItem>
-                                <SidebarMenuButton tooltip="Add Square" onClick={() => setPendingCommand({ type: "addSquare" })}>
-                                    <Layers />
-                                    <span>Add square</span>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
                                 <SidebarMenuButton tooltip="Add Line" onClick={() => setPendingCommand({ type: "addLine" })}>
-                                    <Layers />
+                                    <LineSquiggle />
                                     <span>Add line</span>
                                 </SidebarMenuButton>
                             </SidebarMenuItem>

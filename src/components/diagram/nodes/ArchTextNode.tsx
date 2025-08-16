@@ -6,7 +6,7 @@ import { Handle, NodeToolbar, Position, useReactFlow } from "reactflow";
 import { NodeResizer } from "@reactflow/node-resizer";
 import "@reactflow/node-resizer/dist/style.css";
 import { useAppStore } from "@/lib/store";
-import type { DiagramNode, NodeKind } from "@/lib/types";
+import type { DiagramNode } from "@/lib/types";
 import { NodeColorFormToolbar } from "./NodeColorFormToolbar";
 import { getIconByKey } from "@/lib/iconRegistry";
 import { cn, getTailwindTextClass, TAILWIND_TEXT_COLORS, TailwindBgFamily } from "@/lib/utils";
@@ -18,7 +18,6 @@ export type ArchTextNodeData = {
     textColor?: string;
     borderColor?: string;
     iconKey?: string;
-    nodeKind?: NodeKind; // expected to be "text"
     rotation?: number;
     onLabelCommit?: (newLabel: string) => void;
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import * as React from "react";
 import {
   BaseEdge,
@@ -111,7 +112,7 @@ export function ArchEdge(props: EdgeProps): React.JSX.Element {
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             pointerEvents: "all",
           }}
-          className="nodrag nopan"
+          className={cn("nodrag nopan", selected || labelText ? "opacity-100" : "opacity-0")}
         >
           {isEditing ? (
             <Input
