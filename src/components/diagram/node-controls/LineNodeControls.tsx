@@ -1,5 +1,5 @@
-import { Button } from "../ui/button";
-import { StrokeWidth } from "./edges/StrokeWidth";
+import { Button } from "../../ui/button";
+import { StrokeWidth } from "../edges/StrokeWidth";
 
 type LineNodeControlsProps = {
     lineStrokeColor: string;

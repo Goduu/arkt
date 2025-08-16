@@ -7,7 +7,6 @@ import { NodeResizer } from "@reactflow/node-resizer";
 import "@reactflow/node-resizer/dist/style.css";
 import { useAppStore } from "@/lib/store";
 import type { DiagramNode } from "@/lib/types";
-import { NodeColorFormToolbar } from "./NodeColorFormToolbar";
 import { getIconByKey } from "@/lib/iconRegistry";
 import { cn, getTailwindTextClass, TAILWIND_TEXT_COLORS, TailwindBgFamily } from "@/lib/utils";
 import { AutoWidthInput } from "@/components/ui/auto-width-input";
@@ -148,20 +147,7 @@ export function ArchTextNode(props: NodeProps<ArchTextNodeData>): React.JSX.Elem
             )}
 
 
-            <NodeToolbar isVisible={props.selected} className="nopan">
-                <NodeColorFormToolbar
-                    colors={TAILWIND_TEXT_COLORS}
-                    fillColor={props.data.fillColor}
-                    onClick={(family: TailwindBgFamily) => {
-                        const nextClass = getTailwindTextClass(family, 500);
-                        rf.setNodes((prev) =>
-                            prev.map((n) => (n.id === id ? { ...n, data: { ...n.data, textColor: nextClass } } : n))
-                        );
-                    }}
-                />
-            </NodeToolbar>
-
-            <div className={cn(props.selected ? "border border-primary p-1" : "")} ref={paddingWrapperRef}>
+            <div className={cn(props.selected ? "border border-violet-500" : "")} ref={paddingWrapperRef}>
                 <AutoWidthInput
                     className={cn(
                         "bg-transparent outline-none text-sm font-medium",

@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { ArchNode } from "@/components/diagram/nodes/ArchNode";
 import { ArchTextNode } from "@/components/diagram/nodes/ArchTextNode";
 import { ArchPolylineNode } from "@/components/diagram/nodes/ArchPolylineNode";
-import { NodeControls } from "./NodeControls";
+import { NodeControls } from "./node-controls/NodeControls";
 import { EdgeControls } from "@/components/diagram/edges/EdgeControls";
 import { nanoid } from "nanoid";
 import { FocusIntentHandler } from "./FocusIntentHandler";

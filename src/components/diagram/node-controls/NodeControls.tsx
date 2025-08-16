@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { LineNodeControls } from "./LineNodeControls";
 import { BasicNodeControl } from "./BasicNodeControl";
 import { useEffect, useState } from "react";
+import { TextNodeControls } from "./TextNodeControls";
 
 type Props = {
   selectedNode: RFNode | null;
@@ -31,16 +32,15 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
   // For ArchLineNode: show only stroke color and stroke width
   const isLineKind = selectedNode?.type === "archPolylineNode";
   const isTemplateNode = Boolean(selectedNode?.data.templateId);
+  const isTextNode = selectedNode?.type === "archTextNode";
+  const isBasicNode = selectedNode?.type === "archNode";
+
   console.log("selectedNode", selectedNode);
   const [lineStrokeColor, setLineStrokeColor] = useState<string>(() => {
     const sc = String(((selectedNode?.data as unknown as { strokeColor?: string })?.strokeColor) ?? "");
     return sc.startsWith("#") ? sc : "#334155"; // slate-700
   });
   const [lineStrokeWidth, setLineStrokeWidth] = useState<number>(Number(((selectedNode?.data as unknown as { strokeWidth?: number })?.strokeWidth ?? 2)));
-
-  // Tailwind color selector state for fill color
-  const [fillFamily, setFillFamily] = useState<TailwindBgFamily>("blue");
-  const [fillShade, setFillShade] = useState<TailwindBgShade>(500);
 
   useEffect(() => {
     setLabel(String(data.label ?? ""));
@@ -57,15 +57,6 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
     const sc = String(((selectedNode?.data as unknown as { strokeColor?: string })?.strokeColor) ?? "");
     setLineStrokeColor(sc.startsWith("#") ? sc : "#334155");
     setLineStrokeWidth(Number(((selectedNode?.data as unknown as { strokeWidth?: number })?.strokeWidth ?? 2)));
-    // Initialize tailwind selector state from fillColor when possible
-    const parsed = String(data.fillColor ?? "").match(/^bg-([a-z]+)-(300|500|700)$/);
-    if (parsed) {
-      setFillFamily(parsed[1] as TailwindBgFamily);
-      setFillShade(Number(parsed[2]) as TailwindBgShade);
-    } else {
-      setFillFamily("blue");
-      setFillShade(500);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNode?.id]);
 
@@ -125,8 +116,31 @@ export function NodeControls({ selectedNode, onChange, onClose }: Props) {
             setLineStrokeWidth={setLineStrokeWidth}
           />
         )}
+        {isTextNode && (
+          <TextNodeControls
+            label={label}
+            setLabel={setLabel}
+            description={description}
+            setDescription={setDescription}
+            fillColor={fillColor}
+            setFillColor={setFillColor}
+            textColor={textColor}
+            setTextColor={setTextColor}
+            borderColor={borderColor}
+            setBorderColor={setBorderColor}
+            iconKey={iconKey}
+            nodeKind={nodeKind}
+            rotation={rotation}
+            width={width}
+            height={height}
+            setWidth={setWidth}
+            setHeight={setHeight}
+            commit={commit}
+            onClose={onClose}
+          />
+        )}
 
-        {!isLineKind && !isTemplateNode && (
+        {isBasicNode && (
           <BasicNodeControl
             label={label}
             setLabel={setLabel}

@@ -9,9 +9,9 @@ import { useAppStore } from "@/lib/store";
 import type { Diagram, DiagramEdge, DiagramNode, NodeKind } from "@/lib/types";
 import { VirtualLink } from "./types";
 import { VirtualLinkIndicator } from "./VirtualLinkIndicator";
-import { NodeColorFormToolbar } from "./NodeColorFormToolbar";
 import { getIconByKey } from "@/lib/iconRegistry";
-import { cn, getTailwindBgClass, TAILWIND_MAIN_COLORS, TailwindBgFamily } from "@/lib/utils";
+import { cn, getTailwindBgClass, TailwindBgFamily } from "@/lib/utils";
+import { ColorSelector } from "../ColorSelector";
 
 export type ArchNodeData = {
   label: string;
@@ -210,15 +210,16 @@ export function ArchNode(props: NodeProps<ArchNodeData>): React.JSX.Element {
         isVisible={props.selected}
         className="nopan"
       >
-        <NodeColorFormToolbar
-          colors={TAILWIND_MAIN_COLORS}
-          fillColor={props.data.fillColor}
-          onClick={(family: TailwindBgFamily) => {
-            const nextClass = getTailwindBgClass(family, 500);
+        <ColorSelector
+          label="Fill color"
+          value={props.data.fillColor ?? ""}
+          onChange={(family: string) => {
+            const nextClass = getTailwindBgClass(family as TailwindBgFamily, 500);
             rf.setNodes((prev) =>
               prev.map((n) => (n.id === id ? { ...n, data: { ...n.data, fillColor: nextClass } } : n))
             );
-          }} />
+          }}
+        />
 
       </NodeToolbar>
 
